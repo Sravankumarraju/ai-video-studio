@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+model Owner {
+  id String @id @default("owner")
+  defaults Json @default("{}")
+  createdAt DateTime @default(now())
+}
+model McpConnection {
+  id String @id @default(uuid())
+  name String
+  tokenHash String @unique
+  prefix String
+  scopes Json
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime?
+  revokedAt DateTime?
+}
+model Project {
+  id String @id @default(uuid())
+  title String
+  document Json
+  revision Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  versions ProjectVersion[]
+  assets Asset[]
+  jobs Job[]
+}
+model ProjectVersion {
+  id String @id @default(uuid())
+  projectId String
+  revision Int
+  document Json
+  createdAt DateTime @default(now())
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@unique([projectId, revision])
+}
+model ProviderProfile {
+  id String @id @default(uuid())
+  config Json
+  encryptedKey String
+  verification Json @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model PromptTemplate {
+  id String @id @default(uuid())
+  name String
+  stage String
+  body String
+  version Int @default(1)
+  history Json @default("[]")
+  updatedAt DateTime @updatedAt
+}
+model Asset {
+  id String @id @default(uuid())
+  projectId String
+  name String
+  kind String
+  mime String
+  storageKey String @unique
+  bytes Int
+  duration Float?
+  metadata Json
+  createdAt DateTime @default(now())
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+model Job {
+  id String @id @default(uuid())
+  projectId String
+  kind String
+  state String @default("queued")
+  stage String @default("Queued")
+  dedupeKey String @unique
+  snapshot Json
+  encryptedCredential String?
+  providerJobId String?
+  submittedAt DateTime?
+  cancelRequested Boolean @default(false)
+  result Json?
+  error String?
+  estimatedCost Float?
+  actualCost Float?
+  attempts Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@index([state, createdAt])
+}

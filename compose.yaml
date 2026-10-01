@@ -1,0 +1,61 @@
+services:
+  db:
+    restart: unless-stopped
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: studio
+      POSTGRES_PASSWORD: studio
+      POSTGRES_DB: studio
+    ports: ["127.0.0.1:${POSTGRES_PORT:-55432}:5432"]
+    volumes: ["postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studio"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  redis:
+    restart: unless-stopped
+    image: redis:7-alpine
+    command:
+      ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    ports: ["127.0.0.1:${REDIS_PORT:-56379}:6379"]
+    volumes: ["redis:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  app:
+    image: story-studio:local
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://studio:studio@db:5432/studio
+      REDIS_URL: redis://redis:6379
+      MEDIA_ROOT: /app/data/media
+      FONT_DIR: /app/public/fonts
+    ports: ["127.0.0.1:3000:3000"]
+    volumes: ["media:/app/data/media"]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+  worker:
+    image: story-studio:local
+    build: .
+    command: ["sh", "-c", "npm run db:migrate && npm run worker"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://studio:studio@db:5432/studio
+      REDIS_URL: redis://redis:6379
+      MEDIA_ROOT: /app/data/media
+      FONT_DIR: /app/public/fonts
+    volumes: ["media:/app/data/media"]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+volumes:
+  postgres:
+  redis:
+  media:
