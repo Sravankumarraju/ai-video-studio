@@ -20,16 +20,33 @@ model McpConnection {
   lastUsedAt DateTime?
   revokedAt DateTime?
 }
+// A devotional project (UI: "Project"); its videos are Project rows with role "video".
+model Series {
+  id String @id @default(uuid())
+  name String
+  settings Json
+  revision Int @default(1)
+  // Hidden Project row holding this series' reference images and logo.
+  libraryProjectId String? @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  videos Project[] @relation("SeriesVideos")
+}
 model Project {
   id String @id @default(uuid())
   title String
   document Json
   revision Int @default(1)
+  // "video" (shown in lists) or "library" (a series' media library, hidden).
+  role String @default("video")
+  seriesId String?
+  series Series? @relation("SeriesVideos", fields: [seriesId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   versions ProjectVersion[]
   assets Asset[]
   jobs Job[]
+  @@index([seriesId])
 }
 model ProjectVersion {
   id String @id @default(uuid())

@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { projectSchema, invalidate, type ProjectDoc } from "./schema";
+import { renderInputs } from "./timeline";
 export const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
 export function validateStructure(doc: ProjectDoc) {
@@ -22,6 +23,31 @@ export function validateStructure(doc: ProjectDoc) {
   for (const s of doc.scenes) {
     if (s.captions.some((c) => c.end > s.duration + 0.05))
       throw Error(`${s.title}: caption exceeds scene duration`);
+  }
+}
+// A render is stale only when its own version's rendered inputs differ from the project now.
+export function renderIsCurrent(snapshotDoc: unknown, variantId: string | undefined, current: ProjectDoc) {
+  if (!variantId) return false;
+  try {
+    const before = renderInputs(projectSchema.parse(snapshotDoc), variantId);
+    return !!before && before === renderInputs(current, variantId);
+  } catch {
+    return false;
+  }
+}
+export async function reconcileRenders(
+  tx: Prisma.TransactionClient,
+  projectId: string,
+  current: ProjectDoc,
+) {
+  const renders = await tx.job.findMany({
+    where: { projectId, kind: "render", state: { in: ["completed", "stale"] } },
+    select: { id: true, state: true, snapshot: true },
+  });
+  for (const j of renders) {
+    const snapshot = j.snapshot as { doc?: unknown; options?: { variantId?: string } };
+    const state = renderIsCurrent(snapshot.doc, snapshot.options?.variantId, current) ? "completed" : "stale";
+    if (state !== j.state) await tx.job.update({ where: { id: j.id }, data: { state } });
   }
 }
 export async function saveProject(
@@ -59,10 +85,7 @@ export async function saveProject(
     });
     if (!changed.count)
       throw Error("Project changed in another tab. Reload before saving.");
-    await tx.job.updateMany({
-      where: { projectId: id, kind: "render", state: "completed" },
-      data: { state: "stale" },
-    });
+    await reconcileRenders(tx, id, next);
     return tx.project.findUniqueOrThrow({ where: { id } });
   });
 }

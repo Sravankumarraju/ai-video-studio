@@ -1,5 +1,8 @@
 "use client";
 import { McpSettings } from "./mcp-settings";
+import { isExportForVariant } from "@/lib/export-visibility";
+import { api, Button, Field, Empty, Modal } from "./ui";
+import { SeriesCards, NewSeriesModal, SeriesPage, PlanStage, StatusChip, statusOf, type SeriesRow } from "./series";
 import { useEffect, useRef, useState } from "react";
 import {
   Film,
@@ -57,6 +60,7 @@ import {
   motionState,
 } from "@/lib/timeline";
 import { expandPrompt, templates } from "@/lib/prompts";
+import { layoutCaptions } from "@/lib/caption-layout";
 import { reconcileVariantScenes, createVideoVersion } from "@/lib/project-edit";
 import { landscapeShotVersion, addCallToAction, visualPromptPack } from "@/lib/production-workflow";
 import {
@@ -80,6 +84,7 @@ type Project = {
   document: ProjectDoc;
   revision: number;
   updatedAt: string;
+  seriesId?: string | null;
   assets?: Asset[];
 };
 type Profile = {
@@ -99,6 +104,7 @@ type Job = {
   estimatedCost?: number;
   actualCost?: number;
   result?: {
+    variantId?: string;
     assetId?: string;
     text?: string;
     duration?: number;
@@ -134,111 +140,12 @@ const capabilities: Capability[] = [
   "transcription",
 ];
 const languageNames = { en: "English", te: "Telugu", hi: "Hindi" };
+const isFullExport = (j: Job) =>
+  j.kind === "render" &&
+  ["completed", "stale"].includes(j.state) &&
+  !j.result?.draft;
 const fmt = (n: number) =>
   `${Math.floor(n / 60)}:${String(Math.round(n) % 60).padStart(2, "0")}`;
-async function api<T = unknown>(
-  url: string,
-  method = "GET",
-  data?: unknown,
-): Promise<T> {
-  const r = await fetch(`/api/${url}`, {
-    method,
-    headers:
-      data instanceof FormData
-        ? undefined
-        : { "Content-Type": "application/json" },
-    body:
-      data === undefined
-        ? undefined
-        : data instanceof FormData
-          ? data
-          : JSON.stringify(data),
-  });
-  const b = await r.json();
-  if (!r.ok) throw Error(b.error || "Request failed");
-  return b;
-}
-function Button({
-  children,
-  onClick,
-  secondary = false,
-  disabled = false,
-  ...props
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  secondary?: boolean;
-  disabled?: boolean;
-  title?: string;
-}) {
-  return (
-    <button
-      className={secondary ? "btn secondary" : "btn"}
-      onClick={onClick}
-      disabled={disabled}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      {children}
-    </label>
-  );
-}
-function Empty({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="empty">
-      <Clapperboard size={32} />
-      <h3>{title}</h3>
-      <p>{children}</p>
-    </div>
-  );
-}
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="scrim">
-      <section
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-      >
-        <header>
-          <h2>{title}</h2>
-          <button className="icon" aria-label="Close dialog" onClick={onClose}>
-            <X />
-          </button>
-        </header>
-        {children}
-      </section>
-    </div>
-  );
-}
 function Visual({ asset, scene }: { asset?: Asset; scene?: Scene }) {
   return (
     <div className={`visual ${asset ? "" : "placeholder"}`}>
@@ -292,7 +199,10 @@ export default function Studio() {
     [variantId, setVariantId] = useState(""),
     [search, setSearch] = useState(""),
     [mobile, setMobile] = useState(false),
-    [setupOpen, setSetupOpen] = useState(false);
+    [setupOpen, setSetupOpen] = useState(false),
+    [seriesList, setSeriesList] = useState<SeriesRow[]>([]),
+    [seriesId, setSeriesId] = useState(""),
+    [newSeriesOpen, setNewSeriesOpen] = useState(false);
   const history = useRef<ProjectDoc[]>([]),
     future = useRef<ProjectDoc[]>([]),
     saving = useRef<Promise<void> | null>(null),
@@ -315,13 +225,15 @@ export default function Studio() {
     }
   }
   async function refresh() {
-    const [p, pr, d, j, t] = await Promise.all([
+    const [p, pr, d, j, t, sr] = await Promise.all([
       api<Project[]>("projects"),
       api<Profile[]>("providers"),
       api<Record<string, string>>("defaults"),
       api<Job[]>("jobs"),
       api<{ saved: Template[] }>("templates"),
+      api<SeriesRow[]>("series"),
     ]);
+    setSeriesList(sr);
     setProjects(p);
     setProfiles(pr);
     setDefaults(d);
@@ -406,7 +318,7 @@ export default function Studio() {
       saving.current = null;
     }
   }
-  async function open(p: Project) {
+  async function open(p: Project, requestedVariantId?: string) {
     if (dirty) await save();
     const full = await api<Project>(`projects/${p.id}`);
     setProject(full);
@@ -415,13 +327,15 @@ export default function Studio() {
     setAssets(full.assets || []);
     let remembered: { stage?: string; variantId?: string; selected?: string } | null = null;
     try { remembered = JSON.parse(localStorage.getItem(`studio-position-${p.id}`) || "null"); } catch { /* A corrupt browser preference must never block opening a saved project. */ }
-    setSelected(parsed.scenes.some(s => s.id === remembered?.selected) ? remembered!.selected! : parsed.scenes[0]?.id || "");
-    setVariantId(parsed.variants.some(v => v.id === remembered?.variantId) ? remembered!.variantId! : parsed.variants[0]?.id || "");
+    const requestedVariant = parsed.variants.find(v => v.id === requestedVariantId);
+    setSelected(requestedVariant ? requestedVariant.sceneIds[0] || "" : parsed.scenes.some(s => s.id === remembered?.selected) ? remembered!.selected! : parsed.scenes[0]?.id || "");
+    setVariantId(requestedVariant?.id || (parsed.variants.some(v => v.id === remembered?.variantId) ? remembered!.variantId! : parsed.variants[0]?.id || ""));
     setDirty(false);
     history.current = [];
     future.current = [];
     setView("Project");
-    setStage(remembered?.stage && stages.includes(remembered.stage) ? remembered.stage : "Script");
+    const videoStages = parsed.video ? ["Plan & import", ...stages] : stages;
+    setStage(requestedVariant ? "Preview & exports" : remembered?.stage && videoStages.includes(remembered.stage) ? remembered.stage : parsed.video ? "Plan & import" : "Script");
   }
   async function reloadProject() {
     if (!project) return;
@@ -518,6 +432,12 @@ export default function Studio() {
   const selectedScene = doc?.scenes.find((s) => s.id === selected);
   const variant =
     doc?.variants.find((v) => v.id === variantId) || doc?.variants[0];
+  const publishing = variant?.publishing ?? doc?.publishing ?? {titles: [], description: "", hashtags: "", thumbnailPrompt: "", chapters: ""};
+  function editPublishing(change: Partial<ProjectDoc["publishing"]>) {
+    if (!doc) return;
+    const next = {...publishing, ...change};
+    patch(variant ? {variants: doc.variants.map(v => v.id === variant.id ? {...v, publishing: next} : v)} : {publishing: next});
+  }
   const projectJobs = jobs.filter((j) => j.projectId === project?.id);
   const navigate = (v: string) => {
     setView(v);
@@ -600,6 +520,7 @@ export default function Studio() {
         <nav>
           {[
             ["Dashboard", LayoutDashboard],
+            ["Devotional projects", BookOpen],
             ["All projects", FolderOpen],
             ["AI Providers", Settings],
             ["MCP Connectors", Sparkles],
@@ -765,9 +686,8 @@ export default function Studio() {
                   Layers,
                 ],
                 [
-                  jobs.filter(
-                    (j) => j.kind === "render" && j.state === "completed",
-                  ).length,
+                  // Stale exports are still finished videos; they predate later edits.
+                  jobs.filter(isFullExport).length,
                   "Videos exported",
                   Film,
                 ],
@@ -792,10 +712,23 @@ export default function Studio() {
                 );
               })}
             </div>
+            {view === "Dashboard" && (
+              <>
+                <div className="section-heading">
+                  <div>
+                    <h2>
+                      Devotional projects <span className="count">{seriesList.length}</span>
+                    </h2>
+                    <p>Each project has its own template, sources and style. Its videos inherit them.</p>
+                  </div>
+                </div>
+                <SeriesCards series={seriesList} videos={projects} jobs={jobs} onOpen={(id) => { setSeriesId(id); navigate("Devotional project"); }} onCreate={() => setNewSeriesOpen(true)} />
+              </>
+            )}
             <div className="section-heading">
               <div>
                 <h2>
-                  {view === "Dashboard" ? "Recent projects" : "Your projects"}{" "}
+                  {view === "Dashboard" ? "Recent videos" : "Your projects"}{" "}
                   <span className="count">{projects.length}</span>
                 </h2>
                 <p>Pick up where your inspiration left off.</p>
@@ -813,7 +746,8 @@ export default function Studio() {
             <div className="project-grid">
               {projects
                 .filter((p) =>
-                  p.title.toLowerCase().includes(search.toLowerCase()),
+                  p.title.toLowerCase().includes(search.toLowerCase()) ||
+                  p.document.variants.some(v => v.name.toLowerCase().includes(search.toLowerCase())),
                 )
                 .map((p) => (
                   <article className="project-card" key={p.id}>
@@ -849,13 +783,34 @@ export default function Studio() {
                         {p.document.category} <span>·</span>{" "}
                         {p.document.scenes.length} scenes
                       </p>
+                      <div className="project-versions" aria-label={`Video versions in ${p.title}`}>
+                        <strong>Video versions · {p.document.variants.length}</strong>
+                        {p.document.variants.map(v => (
+                          <button key={v.id} onClick={() => void run(() => open(p, v.id))}>
+                            <Play size={13} aria-hidden="true" />
+                            <span>{v.name}</span>
+                            <small>{v.aspect === "vertical" ? "9:16" : "16:9"}</small>
+                          </button>
+                        ))}
+                      </div>
                       <div className="project-footer">
-                        <span
-                          className={`status ${p.document.scenes.length ? "ready" : ""}`}
-                        >
-                          <span />
-                          {p.document.scenes.length ? "In production" : "Draft"}
-                        </span>
+                        {(() => {
+                          const exported = jobs.filter(
+                            (j) => j.projectId === p.id && isFullExport(j),
+                          ).length;
+                          return (
+                            <span
+                              className={`status ${p.document.scenes.length ? "ready" : ""}`}
+                            >
+                              <span />
+                              {exported
+                                ? `${exported} video${exported === 1 ? "" : "s"} exported`
+                                : p.document.scenes.length
+                                  ? "In production"
+                                  : "Draft"}
+                            </span>
+                          );
+                        })()}
                         <button
                           className="icon"
                           aria-label={`Duplicate ${p.title}`}
@@ -907,6 +862,28 @@ export default function Studio() {
               </section>
             )}
           </main>
+        ) : view === "Devotional projects" ? (
+          <main className="content">
+            <div className="page-heading">
+              <div>
+                <div className="eyebrow">TELUGU DEVOTIONAL VIDEOS</div>
+                <h1>Devotional projects</h1>
+                <p>Bhagavad Gita, Lord Vishnu, Lord Shiva or your own topic. Open a project to create its videos.</p>
+              </div>
+            </div>
+            <SeriesCards series={seriesList} videos={projects} jobs={jobs} onOpen={(id) => { setSeriesId(id); navigate("Devotional project"); }} onCreate={() => setNewSeriesOpen(true)} />
+          </main>
+        ) : view === "Devotional project" && seriesId ? (
+          <SeriesPage
+            id={seriesId}
+            videos={projects}
+            jobs={jobs}
+            run={run}
+            back={() => navigate("Devotional projects")}
+            openVideo={(v) => void run(() => open(v as Project))}
+            refresh={refresh}
+            notify={setNotice}
+          />
         ) : view === "MCP Connectors" ? (
           <McpSettings />
         ) : view === "AI Providers" ? (
@@ -971,11 +948,18 @@ export default function Studio() {
               <div>
                 <button
                   className="back-link"
-                  onClick={() => navigate("Dashboard")}
+                  onClick={() => {
+                    if (project.seriesId) setSeriesId(project.seriesId);
+                    navigate(project.seriesId ? "Devotional project" : "Dashboard");
+                  }}
                 >
-                  <ArrowLeft size={14} /> Projects
+                  <ArrowLeft size={14} />{" "}
+                  {seriesList.find((x) => x.id === project.seriesId)?.name || "Projects"}
                 </button>
-                <h1>{doc.title}</h1>
+                <h1>
+                  {doc.title}{" "}
+                  {doc.video && <StatusChip status={statusOf({ ...project, document: doc }, jobs)} />}
+                </h1>
                 <p>
                   {languageNames[doc.language]} · {doc.category} · {doc.mode}{" "}
                   workflow
@@ -1001,7 +985,7 @@ export default function Studio() {
               </div>
             </div>
             <nav className="stage-nav">
-              {stages.map((s, i) => (
+              {(doc.video ? ["Plan & import", ...stages] : stages).map((s, i) => (
                 <button
                   className={stage === s ? "active" : ""}
                   key={s}
@@ -1012,7 +996,20 @@ export default function Studio() {
                 </button>
               ))}
             </nav>
-            {stage === "Script" ? (
+            {stage === "Plan & import" && doc.video ? (
+              <PlanStage
+                project={project}
+                doc={doc}
+                run={run}
+                save={save}
+                reload={async () => { await reloadProject(); await refresh(); }}
+                patch={patch}
+                goTo={setStage}
+                copy={clipboard}
+                notify={setNotice}
+                seriesRevision={seriesList.find((x) => x.id === project.seriesId)?.revision}
+              />
+            ) : stage === "Script" ? (
               <div className="editor-columns">
                 <section className="panel">
                   <div className="section-heading">
@@ -1445,7 +1442,7 @@ export default function Studio() {
                               e.target.value,
                               a.kind === "audio"
                                 ? {
-                                    audioId: a.id,
+                                    audioId: a.id, audioStart: 0, audioSlice: false,
                                     duration: a.duration || 5,
                                     narrationStale: false,
                                   }
@@ -1643,7 +1640,8 @@ export default function Studio() {
                   .filter(
                     (j) =>
                       j.kind === "render" &&
-                      ["completed", "stale"].includes(j.state),
+                      ["completed", "stale"].includes(j.state) &&
+                      isExportForVariant(j.result, variant?.id, doc.variants.length),
                   )
                   .map((j) => (
                     <div key={j.id} className="panel export-card">
@@ -1731,7 +1729,7 @@ export default function Studio() {
                   <Button
                     onClick={() =>
                       void run(() =>
-                        generate("script", undefined, "publishing"),
+                        generate("script", undefined, "publishing", undefined, !!variant),
                       )
                     }
                   >
@@ -1739,15 +1737,13 @@ export default function Studio() {
                   </Button>
                 </div>
                 <Field label="Title options (one per line)">
+                  <select aria-label="Publishing version" value={variant?.id ?? ""} onChange={e => setVariantId(e.target.value)}>
+                    {doc.variants.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
                   <textarea
-                    value={doc.publishing.titles.join("\n")}
+                    value={publishing.titles.join("\n")}
                     onChange={(e) =>
-                      patch({
-                        publishing: {
-                          ...doc.publishing,
-                          titles: e.target.value.split("\n"),
-                        },
-                      })
+                      editPublishing({titles: e.target.value.split("\n")})
                     }
                   />
                 </Field>
@@ -1762,14 +1758,9 @@ export default function Studio() {
                   <Field key={k} label={k}>
                     <textarea
                       rows={4}
-                      value={doc.publishing[k]}
+                      value={publishing[k]}
                       onChange={(e) =>
-                        patch({
-                          publishing: {
-                            ...doc.publishing,
-                            [k]: e.target.value,
-                          },
-                        })
+                        editPublishing({[k]: e.target.value})
                       }
                     />
                   </Field>
@@ -1778,7 +1769,7 @@ export default function Studio() {
                   <Button
                     secondary
                     onClick={() =>
-                      downloadJson(doc.publishing, "publishing-package.json")
+                      downloadJson(publishing, "publishing-package.json")
                     }
                   >
                     Download package
@@ -1786,7 +1777,7 @@ export default function Studio() {
                   <Button
                     secondary
                     onClick={() =>
-                      void clipboard(doc.publishing.thumbnailPrompt)
+                      void clipboard(publishing.thumbnailPrompt)
                     }
                   >
                     Copy thumbnail prompt
@@ -1798,7 +1789,7 @@ export default function Studio() {
                           "image",
                           undefined,
                           "thumbnail",
-                          doc.publishing.thumbnailPrompt,
+                          publishing.thumbnailPrompt,
                         ),
                       )
                     }
@@ -1828,6 +1819,20 @@ export default function Studio() {
           <span>Manual · Hybrid · Automatic</span>
         </footer>
       </div>
+      {newSeriesOpen && (
+        <NewSeriesModal
+          onClose={() => setNewSeriesOpen(false)}
+          run={run}
+          created={(s) => {
+            setNewSeriesOpen(false);
+            void run(async () => {
+              await refresh();
+              setSeriesId(s.id);
+              navigate("Devotional project");
+            });
+          }}
+        />
+      )}
       {newOpen && (
         <NewProject
           onClose={() => setNewOpen(false)}
@@ -3342,7 +3347,7 @@ function PromptWorkspace({
                       scene.id,
                       a.kind === "audio"
                         ? {
-                            audioId: a.id,
+                            audioId: a.id, audioStart: 0, audioSlice: false,
                             duration: a.duration || scene.duration,
                             narrationStale: false,
                           }
@@ -3657,7 +3662,7 @@ function VoicePage({
                   }
                 />
                 <textarea
-                  rows={2}
+                  rows={c.display === "full-verse" ? 3 : 2}
                   value={c.text}
                   aria-label="Caption text"
                   onChange={(e) =>
@@ -3675,6 +3680,10 @@ function VoicePage({
                     })
                   }
                 />
+                <label className="checkbox">
+                  <input type="checkbox" checked={c.display === "full-verse"} onChange={(e) => edit({captions: s.captions.map((x) => x.id === c.id ? {...x, display: e.target.checked ? "full-verse" : undefined} : x)})} />
+                  Keep complete verse on screen during this cue (even with captions off)
+                </label>
                 <span className="pill">{c.accuracy}</span>
                 <button
                   className="icon"
@@ -3797,6 +3806,11 @@ function TimelineEditor({
     (c) =>
       playhead - active.start >= c.start && playhead - active.start < c.end,
   );
+  const captionPage = active && activeCaption && v ? layoutCaptions([activeCaption], {
+    maxWidthPx: Math.floor((v.aspect === "vertical" ? 1080 * .8 : 1920 * .84) * .92),
+    fontPx: Math.round(v.fontSize * (v.aspect === "vertical" ? 1920 : 1080) / 1080),
+  }).find(p => playhead - active.start >= p.start && playhead - active.start < p.end) : undefined;
+  const pageWords = captionPage?.lines.flat() ?? [];
   const updateVariant = (p: Partial<Variant>) =>
     v &&
     patch({
@@ -3833,9 +3847,9 @@ function TimelineEditor({
   };
   return (
     <>
-      <div className="toolbar">
+      <div className="toolbar" style={{ flexWrap: "wrap" }}>
         <h2>Timeline editor</h2>
-        <div className="row">
+        <div className="row wrap">
           <Button secondary onClick={undo}>
             <Undo2 size={14} /> Undo
           </Button>
@@ -3984,7 +3998,10 @@ function TimelineEditor({
                       asset={assets.find((a) => a.id === active?.scene.assetId)}
                     />
                   </div>
-                  {active && v.captions && (
+                  {(v.logoId === undefined ? doc.logoId : v.logoId) && playhead >= (v.logoStart ?? 0) && (
+                    <img src={`/api/assets/${v.logoId === undefined ? doc.logoId : v.logoId}`} alt="Channel logo" style={{position: "absolute", top: "2%", right: "3%", width: "12%", zIndex: 2}} />
+                  )}
+                  {active && (v.captions || activeCaption?.display === "full-verse") && (
                     <div
                       className="browser-caption"
                       style={{
@@ -3996,41 +4013,29 @@ function TimelineEditor({
                                 (!v.font && doc.subtitleLanguage === "hi")
                               ? "Devanagari"
                               : "Studio, Telugu, Devanagari",
-                        fontSize: v.fontSize / 3,
+                        fontSize: v.fontSize / 3 * (captionPage?.scale ?? 1),
                         color: v.color,
-                        background: v.background
+                        background: v.background && activeCaption?.display !== "full-verse"
                           ? "rgba(0,0,0,.65)"
                           : undefined,
+                        whiteSpace: activeCaption?.display === "full-verse" ? "pre-line" : undefined,
+                        transform: activeCaption?.display === "full-verse" ? "translateY(-50%)" : undefined,
+                        lineHeight: activeCaption?.display === "full-verse" ? 1.6 : undefined,
                         top:
-                          v.position === "top"
+                          activeCaption?.display === "full-verse" ? "50%" : v.position === "top"
                             ? "8%"
                             : v.position === "center"
                               ? "45%"
                               : undefined,
-                        bottom: v.position === "bottom" ? "10%" : "auto",
+                        bottom: activeCaption?.display === "full-verse" ? "auto" : v.position === "bottom" ? `${(v.captionBottom ?? (v.aspect === "vertical" ? .2 : .07)) * 100}%` : "auto",
                         textShadow: `0 0 ${v.outline}px #000`,
                       }}
                     >
-                      {v.wordHighlight &&
-                      activeCaption?.accuracy === "aligned" &&
-                      activeCaption.words?.length
-                        ? activeCaption.words.map((word, i) => (
-                            <span
-                              key={i}
-                              style={{
-                                color:
-                                  playhead - active.start >= word.start &&
-                                  playhead - active.start <
-                                    (activeCaption.words![i + 1]?.start ??
-                                      activeCaption.end)
-                                    ? "#c8ff63"
-                                    : v.color,
-                              }}
-                            >
-                              {word.text}{" "}
-                            </span>
-                          ))
-                        : activeCaption?.text}
+                      {captionPage?.lines.map((line, lineIndex) => <span key={lineIndex} style={{display: "block"}}>{line.map((word, i) => {
+                        const index = pageWords.indexOf(word);
+                        const highlighted = v.wordHighlight && !captionPage.held && captionPage.timed && word.start !== undefined && playhead - active.start >= (index === 0 ? captionPage.start : word.start) && playhead - active.start < (pageWords[index + 1]?.start ?? captionPage.end);
+                        return <span key={i} style={{color: highlighted ? v.highlightColor : v.color}}>{word.text}{" "}</span>;
+                      })}</span>)}
                     </div>
                   )}
                 </div>
@@ -4077,6 +4082,18 @@ function TimelineEditor({
                   <Field label="Recording start timestamp (seconds)"><input type="number" min={0} step={0.01} value={s.audioStart} onChange={e => editScene(s.id, { audioStart: Number(e.target.value), audioSlice: true, captionsStale: !!s.captions.length })} /></Field>
                   {s.audioId && <audio key={`${s.id}-${s.audioId}-${s.audioStart}`} controls src={`/api/assets/${s.audioId}`} onLoadedMetadata={e => { e.currentTarget.currentTime = s.audioStart; }} onTimeUpdate={e => { if (s.audioSlice && e.currentTarget.currentTime >= s.audioStart + s.duration) e.currentTarget.pause(); }} />}
                   <p className="help">This scene uses {s.audioStart.toFixed(2)}–{(s.audioStart + s.duration).toFixed(2)} seconds of its recording. Changing an image keeps this audio range and its volume. Generate a new voice take per scene, or assign another uploaded recording; rebuild captions if timing changes.</p>
+                  <div className="scene-visual-pick">
+                    {s.assetId && assets.find(a => a.id === s.assetId)?.kind === "image" && <img src={`/api/assets/${s.assetId}`} alt={`Current image for ${s.title}`} />}
+                    <label className="btn secondary">
+                      <Upload size={14} /> Upload my own image / video
+                      <input type="file" accept="image/*,video/*" hidden onChange={e => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        // Uploads and assigns in one step; the scene keeps its recording, timing and captions.
+                        if (f) void run(async () => { const a = await upload(f); if (a) editScene(s.id, { assetId: a.id, mediaType: a.kind === "video" ? "video" : "image" }); });
+                      }} />
+                    </label>
+                  </div>
                   <Field label="Image / video for this shot"><select value={s.assetId || ""} onChange={e => { const a = assets.find(a => a.id === e.target.value); if (a) editScene(s.id, { assetId: a.id, mediaType: a.kind === "video" ? "video" : "image" }); }}><option value="">Choose uploaded or generated visual</option>{assets.filter(a => a.kind === "image" || a.kind === "video").map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
                   <Field label="Saved image prompt"><textarea value={s.imagePrompt} onChange={e => editScene(s.id, { imagePrompt: e.target.value })} /></Field>
                   <Field label="Saved video prompt"><textarea value={s.videoPrompt} onChange={e => editScene(s.id, { videoPrompt: e.target.value })} /></Field>
@@ -4176,6 +4193,12 @@ function TimelineEditor({
                         editScene(s.id, { strength: Number(e.target.value) })
                       }
                     />
+                  </Field>
+                  <Field label="Camera movement">
+                    <select value={s.motionEasing ?? "linear"} onChange={e => editScene(s.id, {motionEasing: e.target.value as Scene["motionEasing"]})}>
+                      <option value="linear">Linear</option>
+                      <option value="smooth">Smooth start and stop</option>
+                    </select>
                   </Field>
                   <div className="grid-two">
                     <Field label="Variant focal X">
@@ -4542,11 +4565,11 @@ function TimelineEditor({
                 />{" "}
                 Duck music beneath narration
               </label>
-              <Field label="Logo">
+              <Field label="Logo for this version">
                 <select
-                  value={doc.logoId || ""}
+                  value={(v.logoId === undefined ? doc.logoId : v.logoId) || ""}
                   onChange={(e) =>
-                    patch({ logoId: e.target.value || undefined })
+                    updateVariant({ logoId: e.target.value || null })
                   }
                 >
                   <option value="">No logo</option>
@@ -4558,6 +4581,9 @@ function TimelineEditor({
                       </option>
                     ))}
                 </select>
+              </Field>
+              <Field label="Show corner logo after (seconds)">
+                <input type="number" min={0} step={0.1} value={v.logoStart ?? 0} onChange={(e) => updateVariant({logoStart: Math.max(0, Number(e.target.value))})} />
               </Field>
               <Field label="Title overlay (first 3 seconds)">
                 <input
@@ -4649,8 +4675,14 @@ function TimelineEditor({
                   updateVariant({ wordHighlight: e.target.checked })
                 }
               />{" "}
-              Highlight words where accurate alignment exists
+              Highlight the word being spoken (needs aligned captions)
             </label>
+            {v.wordHighlight && (
+              <Field label="Highlight colour">
+                <input type="color" value={v.highlightColor} onChange={(e) => updateVariant({ highlightColor: e.target.value })} />
+              </Field>
+            )}
+            <p className="help">Captions are centred and laid out for this version's frame: words are never split, at most two lines show at once, and long words shrink to fit. Vertical versions sit above the Shorts/Reels controls.</p>
             <div className="grid-three">
               <Field label="Caption font">
                 <select
@@ -4698,6 +4730,9 @@ function TimelineEditor({
                     <option key={p}>{p}</option>
                   ))}
                 </select>
+              </Field>
+              <Field label="Caption height above bottom (%)">
+                <input type="number" min={5} max={40} step={1} value={Math.round((v.captionBottom ?? (v.aspect === "vertical" ? .2 : .07)) * 100)} onChange={e => updateVariant({captionBottom: Number(e.target.value) / 100})} />
               </Field>
               <Field label="Outline width">
                 <input

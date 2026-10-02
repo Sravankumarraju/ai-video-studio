@@ -18,11 +18,14 @@ export const templates: Record<string, string> = {
   publishing:
     "Return JSON only with titles (array of strings), description, hashtags (string), thumbnailPrompt, chapters (string). Project: {{title}}. Script: {{script}}. Do not claim sources beyond those supplied.",
 };
+export const aspectLabel = (a: "landscape" | "vertical") =>
+  a === "vertical" ? "vertical 9:16" : "landscape 16:9";
 export function expandPrompt(
   stage: string,
   doc: ProjectDoc,
   scene?: Scene,
   global?: string,
+  aspect?: "landscape" | "vertical",
 ) {
   const template =
     scene?.promptOverrides[stage] ||
@@ -35,11 +38,16 @@ export function expandPrompt(
     ...scene,
     title: doc.title,
     sceneTitle: scene?.title || "",
-    characters: JSON.stringify(doc.characters),
+    // Only the characters assigned to this scene; every character otherwise.
+    characters: JSON.stringify(
+      scene?.characterIds.length
+        ? doc.characters.filter((c) => scene.characterIds.includes(c.id))
+        : doc.characters,
+    ),
   };
   const plan = durationPlan(doc.targetDuration);
   return (
-    `Language: ${doc.language}; audience: ${doc.audience}; target duration: ${doc.targetDuration}s; style: ${doc.style}; aspect: ${doc.variants[0]?.aspect || "landscape"}; subtitle language: ${doc.subtitleLanguage}. Planning guide: approximately ${plan.minimumWords}-${plan.maximumWords} words and ${plan.suggestedScenes} coherent scenes, adjusted for this language and natural delivery. Never speed up narration to force a target. Scene clip limits are independent of total video length.\n` +
+    `Language: ${doc.language}; audience: ${doc.audience}; target duration: ${doc.targetDuration}s; style: ${doc.style}; aspect: ${aspectLabel(aspect || doc.variants[0]?.aspect || "landscape")}; subtitle language: ${doc.subtitleLanguage}. Planning guide: approximately ${plan.minimumWords}-${plan.maximumWords} words and ${plan.suggestedScenes} coherent scenes, adjusted for this language and natural delivery. Never speed up narration to force a target. Scene clip limits are independent of total video length.\n` +
     template.replace(/\{\{(\w+)\}\}/g, (_, k) => String(ctx[k] ?? ""))
   );
 }

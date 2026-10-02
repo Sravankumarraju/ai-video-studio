@@ -22,6 +22,21 @@ import { jobQueue, redis } from "@/lib/queue";
 import { storage, storageKey } from "@/lib/storage";
 import { detect, probe } from "@/lib/media";
 import { templates } from "@/lib/prompts";
+import {
+  listSeries,
+  createSeries,
+  getSeries,
+  updateSeries,
+  deleteSeries,
+  duplicateSeries,
+  createVideo,
+  createVideos,
+  suggestNextEpisodes,
+  assignVideo,
+  applyProjectUpdates,
+  importGenerated,
+} from "@/lib/series-store";
+import { seriesTemplates } from "@/lib/series";
 import { z } from "zod";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -311,11 +326,46 @@ async function route(
         );
       }
     }
+    if (p[0] === "series") {
+      if (p[1] === "templates" && method === "GET") return response(seriesTemplates);
+      if (p.length === 1 && method === "GET") return response(await listSeries());
+      if (p.length === 1 && method === "POST") {
+        const b = z
+          .object({ templateId: z.enum(["bhagavad-gita", "vishnu", "shiva", "custom"]), name: z.string().max(200).optional() })
+          .parse(await body(req));
+        return response(await createSeries(b.templateId, b.name));
+      }
+      if (p[2] === "duplicate" && method === "POST") return response(await duplicateSeries(p[1]));
+      if (p[2] === "videos" && p[3] === "bulk" && method === "POST") return response(await createVideos(p[1], (await body(req)).episodes));
+      if (p[2] === "videos" && p[3] === "suggest" && method === "GET") {
+        const q = new URL(req.url).searchParams;
+        return response(await suggestNextEpisodes(p[1], q.get("formatId") || undefined, Number(q.get("count") || 10)));
+      }
+      if (p[2] === "videos" && method === "POST") return response(await createVideo(p[1], await body(req)));
+      if (p.length === 2 && method === "GET") return response(await getSeries(p[1]));
+      if (p.length === 2 && method === "PATCH") {
+        const b = await body(req);
+        return response(await updateSeries(p[1], b.settings, z.number().int().parse(b.revision)));
+      }
+      if (p.length === 2 && method === "DELETE") return response(await deleteSeries(p[1]));
+    }
     if (p[0] === "projects") {
       if (p.length === 1 && method === "GET")
         return response(
-          await db.project.findMany({ orderBy: { updatedAt: "desc" } }),
+          // Series media libraries are internal; only videos are listed.
+          await db.project.findMany({ where: { role: "video" }, orderBy: { updatedAt: "desc" } }),
         );
+      if (p[2] === "series" && method === "POST") {
+        const b = z.object({ seriesId: z.string().max(80).nullable() }).parse(await body(req));
+        return response(await assignVideo(p[1], b.seriesId));
+      }
+      if (p[2] === "apply-series" && method === "POST") return response(await applyProjectUpdates(p[1]));
+      if (p[2] === "import-generated" && method === "POST") {
+        const b = z
+          .object({ json: z.unknown(), apply: z.boolean().default(false), replace: z.boolean().default(false), revision: z.number().int().optional(), review: z.object({ sourcesChecked: z.boolean(), versesChecked: z.boolean() }).optional() })
+          .parse(await body(req));
+        return response(await importGenerated(p[1], b.json, b));
+      }
       if (p.length === 1 && method === "POST") {
         const doc = projectSchema.parse(await body(req));
         return response(
@@ -405,8 +455,9 @@ async function route(
       if (p[2] === "duplicate" && method === "POST") {
         const doc = projectSchema.parse(project.document);
         doc.title += " (copy)";
+        // A duplicated video draft stays in its devotional project.
         const copy = await db.project.create({
-          data: { title: doc.title, document: json(doc) },
+          data: { title: doc.title, document: json(doc), seriesId: project.seriesId },
         });
         const list = await db.asset.findMany({
           where: { projectId: project.id },

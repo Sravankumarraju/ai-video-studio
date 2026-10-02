@@ -1,5 +1,7 @@
 # Story Studio
 
+Current status: [Project overview and implementation report](PROJECT_OVERVIEW_AND_IMPLEMENTATION.md). New workflow: [16:9, external AI prompts, timestamped voices and resume](docs/MANUAL-AUTO-WORKFLOW.md).
+
 A private, single-owner video studio for Telugu, Hindi and English stories. Next.js/TypeScript provides the studio and protected API; PostgreSQL stores projects, revisions, assets, profiles and job records; BullMQ/Redis coordinates a separate FFmpeg worker. Manual production works without AI credentials.
 
 Connect a compatible AI client from **MCP Connectors** to let its chosen model write scripts, edit scenes, import media, render variants and download MP4s. HTTP and desktop stdio setup, separate permissions and cloud compatibility limits are in [docs/MCP.md](docs/MCP.md). Paid generation is a separate opt-in permission; providers remain independently configured.

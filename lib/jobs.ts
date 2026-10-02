@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { jobDedupeKey } from "./job-dedupe";
 import { db } from "./db";
 import { json } from "./projects";
 import {
@@ -96,7 +96,14 @@ export async function enqueue(
     prompt ??=
       kind === "voice"
         ? scene?.narration
-        : expandPrompt(options.operation || kind, doc, scene, template?.body);
+        : expandPrompt(
+            options.operation || kind,
+            doc,
+            scene,
+            template?.body,
+            // The requested output version decides the frame, not the first version.
+            doc.variants.find((v) => v.id === options.variantId)?.aspect,
+          );
     if (
       kind === "script" &&
       variant &&
@@ -128,9 +135,7 @@ export async function enqueue(
     profileId,
     prompt,
   };
-  const dedupeKey = createHash("sha256")
-    .update(JSON.stringify({ projectId, kind, snapshot }))
-    .digest("hex");
+  const dedupeKey = jobDedupeKey(projectId, kind, snapshot);
   const existing = await db.job.findUnique({ where: { dedupeKey } });
   if (existing) {
     await jobQueue().add(kind, { id: existing.id }, { jobId: existing.id });
@@ -170,4 +175,21 @@ export async function enqueue(
   });
   await jobQueue().add(kind, { id: job.id }, { jobId: job.id });
   return publicJob(job);
+}
+// BullMQ can fail a job without processJob running its catch block: a job that stalls past
+// maxStalledCount (e.g. a frozen or restarted container) is failed by the queue alone. Mirror
+// that into the database, or the job shows "running" forever and Retry refuses it.
+export async function recordQueueFailure(id: string, reason: string) {
+  const j = await db.job.findUnique({ where: { id } });
+  if (!j || !["queued", "running"].includes(j.state)) return;
+  const unknownCharge =
+    !!j.submittedAt && !j.providerJobId && !j.result && !["render", "automatic"].includes(j.kind);
+  await db.job.update({
+    where: { id },
+    data: {
+      state: unknownCharge ? "waiting-for-input" : "failed",
+      stage: unknownCharge ? "Needs reconciliation" : "Interrupted",
+      error: `The worker stopped during this job (${reason.slice(0, 200)}). Retry to resume${j.kind === "render" ? "; completed scene clips are reused" : ""}.`,
+    },
+  });
 }

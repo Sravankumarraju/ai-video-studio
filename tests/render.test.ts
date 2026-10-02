@@ -121,8 +121,9 @@ describe("real FFmpeg rendering without AI credentials", () => {
       variants: [v],
     });
     const ass = assFile(d, v, 1920, 1080);
-    expect(ass).toContain("&H0063FFC8,&H00FFFFFF");
-    expect(ass).toContain("{\\kf100}One");
+    // Only the word being spoken is highlighted: "One" until "step" begins at 1 s.
+    expect(ass).toContain("0:00:00.00,0:00:01.00,Default,,0,0,0,,{\\c&H004AD5FF}One{\\c&H00FFFFFF} step");
+    expect(ass).toContain("0:00:01.00,0:00:02.00,Default,,0,0,0,,One {\\c&H004AD5FF}step{\\c&H00FFFFFF}");
     expect(assFile(d, { ...v, captions: false }, 1920, 1080)).not.toContain(
       "Dialogue:",
     );

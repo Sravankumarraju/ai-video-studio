@@ -19,6 +19,7 @@ export function remapMedia(doc: ProjectDoc, ids: Record<string, string>) {
   doc.scenes = doc.scenes.map(scene);
   doc.variants = doc.variants.map((v) => ({
     ...v,
+    logoId: v.logoId === null ? null : map(v.logoId),
     sceneOverrides: Object.fromEntries(
       Object.entries(v.sceneOverrides).map(([id, s]) => [id, scene(s)]),
     ),

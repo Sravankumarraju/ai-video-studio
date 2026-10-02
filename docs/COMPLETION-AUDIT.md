@@ -1,5 +1,7 @@
 # Story Studio completion audit
 
+Historical initial audit. Current implementation and live voice verification: [project overview and implementation](../PROJECT_OVERVIEW_AND_IMPLEMENTATION.md). The new workflow passes 68 tests, includes durable scene render checkpoints and fixes disabled fades lowering narration at scene changes. Its newest export status is recorded in the current report.
+
 Audit performed October 1, 2026 against the original build request and the explicit video-length addition. The complete Docker application runs at http://localhost:3000 with PostgreSQL, Redis and a separate FFmpeg worker. Existing database and media volumes were preserved.
 
 ## Verified functionality

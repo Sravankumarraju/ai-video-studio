@@ -19,11 +19,11 @@ import {
   sceneSchema,
   providerSchema,
 } from "../lib/schema";
-import { applyJob, json } from "../lib/projects";
+import { applyJob, json, renderIsCurrent } from "../lib/projects";
 import { applyVariantNarration } from "../lib/duration";
 import { storage, storageKey, materialize } from "../lib/storage";
 import { detect, probe } from "../lib/media";
-import { enqueue } from "../lib/jobs";
+import { enqueue, recordQueueFailure } from "../lib/jobs";
 import { render } from "./render";
 import { z } from "zod";
 import { narrationTiming } from "../lib/alignment";
@@ -100,7 +100,11 @@ export async function processJob(id: string) {
       await db.job.update({
         where: { id },
         data: {
-          state: current.revision === snapshot.revision ? "completed" : "stale",
+          state:
+            current.revision === snapshot.revision ||
+            renderIsCurrent(snapshot.doc, opts.variantId, projectSchema.parse(current.document))
+              ? "completed"
+              : "stale",
           stage: "Validated and available for download",
           result: json(result),
         },
@@ -189,7 +193,10 @@ export async function processJob(id: string) {
             duration: opts.explicitTest
               ? 5
               : scene?.duration || doc.targetDuration,
-            aspect: doc.variants[0]?.aspect === "vertical" ? "9:16" : "16:9",
+            aspect:
+              (doc.variants.find((v) => v.id === opts.variantId) || doc.variants[0])?.aspect === "vertical"
+                ? "9:16"
+                : "16:9",
             voiceId: scene?.voiceId,
             previousText: doc.scenes[index - 1]?.narration,
             nextText: doc.scenes[index + 1]?.narration,
@@ -333,6 +340,7 @@ export async function processJob(id: string) {
                       captions: true,
                       fontSize: 48,
                       color: "#ffffff",
+                      highlightColor: "#ffd54a",
                       outline: 2,
                       background: false,
                       position: "bottom",
@@ -343,11 +351,14 @@ export async function processJob(id: string) {
                       sceneOverrides: {},
                     },
                   ];
-              } else if (opts.operation === "publishing")
-                p.publishing = projectSchema.shape.publishing.parse(
+              } else if (opts.operation === "publishing") {
+                const publishing = projectSchema.shape.publishing.parse(
                   JSON.parse(cleanJson(result.text!)),
                 );
-              else if (scene) {
+                if (opts.variantScoped && opts.variantId)
+                  p.variants = p.variants.map(v => v.id === opts.variantId ? {...v, publishing} : v);
+                else p.publishing = publishing;
+              } else if (scene) {
                 p.scenes = p.scenes.map((s) =>
                   s.id === scene.id ? { ...s, narration: result.text! } : s,
                 );
@@ -649,8 +660,12 @@ const worker = new Worker(
     maxStalledCount: 2,
   },
 );
-worker.on("failed", (job) => {
+worker.on("failed", (job, err) => {
   console.error("Job failed:", job?.id);
+  if (job?.id)
+    void recordQueueFailure(job.id, err.message).catch(() =>
+      console.error("Could not record queue failure", job.id),
+    );
 });
 // Database is an outbox: recover queue submission failures and restarts without new paid requests.
 const recovery = setInterval(() => {
@@ -662,6 +677,9 @@ const recovery = setInterval(() => {
     for (const j of jobs) {
       const queued = await jobQueue().getJob(j.id);
       if (!queued) await jobQueue().add(j.kind, { id: j.id }, { jobId: j.id });
+      // Failed in the queue while this worker was down, so the failed event never fired here.
+      else if (await queued.isFailed())
+        await recordQueueFailure(j.id, queued.failedReason || "queue failure");
     }
     const autos = await db.job.findMany({
       where: { kind: "automatic", state: "waiting-for-input" },

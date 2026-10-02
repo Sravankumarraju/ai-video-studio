@@ -13,6 +13,7 @@ import { createHash } from "node:crypto";
 import type { Asset } from "@prisma/client";
 import { projectSchema, type ProjectDoc, type Variant } from "../lib/schema";
 import { timeline, duration, captions, subtitleFile } from "../lib/timeline";
+import { layoutCaptions } from "../lib/caption-layout";
 import { command, probe } from "../lib/media";
 import { materialize, storage, storageKey } from "../lib/storage";
 export function motionFilter(
@@ -22,7 +23,8 @@ export function motionFilter(
   fps: number,
 ) {
   const frames = Math.max(2, Math.round(s.duration * fps)),
-    p = `min(on/${frames - 1},1)`,
+    u = `min(on/${frames - 1},1)`,
+    p = s.motionEasing === "smooth" ? `(${u}*${u}*(3-2*${u}))` : u,
     str = s.strength;
   let z = "1";
   let x = `(iw-iw/zoom)*${s.focalX}`,
@@ -37,7 +39,9 @@ export function motionFilter(
     if (s.motion === "pan-down") y = `(ih-ih/zoom)*${p}`;
   }
   // A still needs decoding/scaling once. zoompan emits the complete motion sequence.
-  return `scale=${w * 2}:${h * 2}:force_original_aspect_ratio=increase,crop=${w * 2}:${h * 2}:x='(iw-ow)*${s.focalX}':y='(ih-oh)*${s.focalY}',zoompan=z='${z}':x='${x}':y='${y}':d=${frames}:s=${w}x${h}:fps=${fps},setsar=1,format=yuv420p`;
+  // Supersampling reduces integer-coordinate stepping during very small camera movements.
+  const factor = s.motionEasing === "smooth" && s.motion !== "static" ? 4 : 2;
+  return `scale=${w * factor}:${h * factor}:force_original_aspect_ratio=increase,crop=${w * factor}:${h * factor}:x='(iw-ow)*${s.focalX}':y='(ih-oh)*${s.focalY}',zoompan=z='${z}':x='${x}':y='${y}':d=${frames}:s=${w}x${h}:fps=${fps},setsar=1,format=yuv420p`;
 }
 const assTime = (s: number) => {
   const n = Math.round(s * 100);
@@ -45,15 +49,13 @@ const assTime = (s: number) => {
 };
 const assText = (s: string) =>
   s.replace(/\\/g, "").replace(/[{}]/g, "").replace(/\r?\n/g, "\\N");
-function assCaption(c: ReturnType<typeof captions>[number], v: Variant) {
-  if (!v.wordHighlight || c.accuracy !== "aligned" || !c.words?.length)
-    return assText(c.text);
-  return c.words
-    .map(
-      (w, i) =>
-        `{\\kf${Math.max(1, Math.round(((c.words![i + 1]?.start ?? c.end) - w.start) * 100))}}${assText(w.text)}`,
-    )
-    .join(" ");
+const assColor = (hex: string) => "&H00" + hex.slice(1).match(/../g)!.reverse().join("").toUpperCase();
+export function captionGeometry(v: Variant, w: number, h: number) {
+  const vertical = v.aspect === "vertical";
+  // Vertical frames keep clear of the Shorts/Reels buttons on the right and the UI at the bottom.
+  const marginX = Math.round(w * (vertical ? 0.1 : 0.08));
+  const marginV = Math.round(h * (v.captionBottom ?? (vertical ? 0.2 : 0.07)));
+  return { marginX, marginV, fontPx: Math.round((v.fontSize * h) / 1080), maxWidthPx: Math.floor((w - 2 * marginX) * 0.92) };
 }
 export function assFile(doc: ProjectDoc, v: Variant, w: number, h: number) {
   const font =
@@ -64,20 +66,36 @@ export function assFile(doc: ProjectDoc, v: Variant, w: number, h: number) {
         : doc.subtitleLanguage === "hi"
           ? "Noto Sans Devanagari"
           : "Noto Sans";
-  const color =
-    "&H00" + v.color.slice(1).match(/../g)!.reverse().join("").toUpperCase();
+  const color = assColor(v.color), highlight = assColor(v.highlightColor);
   const align = v.position === "top" ? 8 : v.position === "center" ? 5 : 2;
-  const fs = Math.round((v.fontSize * h) / 1080);
-  const margin = Math.round(h * (v.aspect === "vertical" ? 0.14 : 0.07));
-  const highlight = v.wordHighlight ? "&H0063FFC8" : color;
+  const g = captionGeometry(v, w, h);
+  // BorderStyle 3 paints the caption box with OutlineColour, so translucency belongs there.
+  const outline = v.background ? "&H60000000" : "&H00101010";
+  const pages = layoutCaptions(captions(doc, v).filter(c => v.captions || c.display === "full-verse"), g);
+  const events: string[] = [];
+  for (const page of pages) {
+    const words = page.lines.flat();
+    const scale = page.scale < 1 ? `{\\fscx${Math.floor(page.scale * 100)}\\fscy${Math.floor(page.scale * 100)}}` : "";
+    const text = (active = -1) => {
+      let k = 0;
+      return (page.held ? "{\\an5}" : "") + scale + page.lines.map((line) => line.map((word) => (k++ === active ? `{\\c${highlight}}${assText(word.text)}{\\c${color}}` : assText(word.text))).join(" ")).join("\\N");
+    };
+    if (!v.wordHighlight || !page.timed) {
+      events.push(`Dialogue: 0,${assTime(page.start)},${assTime(page.end)},${page.held ? "Verse" : "Default"},,0,0,0,,${text()}`);
+      continue;
+    }
+    // One event per spoken word: only the word being said is highlighted.
+    words.forEach((word, k) => {
+      const start = k === 0 ? page.start : Math.max(page.start, word.start!);
+      const end = k === words.length - 1 ? page.end : Math.min(page.end, words[k + 1].start!);
+      if (end > start) events.push(`Dialogue: 0,${assTime(start)},${assTime(end)},Default,,0,0,0,,${text(k)}`);
+    });
+  }
   return (
-    `[Script Info]\nScriptType: v4.00+\nPlayResX: ${w}\nPlayResY: ${h}\nWrapStyle: 0\nScaledBorderAndShadow: yes\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,${font},${fs},${highlight},${color},&H00101010,&H80000000,0,0,0,0,100,100,0,0,${v.background ? 3 : 1},${v.outline},0,${align},${Math.round(w * 0.08)},${Math.round(w * 0.08)},${margin},1\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n` +
-    (v.captions ? captions(doc, v) : [])
-      .map(
-        (c) =>
-          `Dialogue: 0,${assTime(c.start)},${assTime(c.end)},Default,,0,0,0,,${assCaption(c, v)}`,
-      )
-      .join("\n") +
+    `[Script Info]\nScriptType: v4.00+\nPlayResX: ${w}\nPlayResY: ${h}\nWrapStyle: 2\nScaledBorderAndShadow: yes\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,${font},${g.fontPx},${color},${color},${outline},&H80000000,0,0,0,0,100,100,0,0,${v.background ? 3 : 1},${v.outline},${v.background ? 0 : 2},${align},${g.marginX},${g.marginX},${g.marginV},1\n` +
+    `Style: Verse,${font},${g.fontPx},${color},${color},&H00101010,&H00000000,0,0,0,0,100,100,0,0,1,${v.outline},2,5,${g.marginX},${g.marginX},${g.marginV},1\n` +
+    `[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n` +
+    events.join("\n") +
     (v.titleOverlay
       ? `\nDialogue: 1,0:00:00.00,${assTime(Math.min(3, duration(doc, v)))},Default,,0,0,0,,{\\an8}${assText(v.titleOverlay)}`
       : "")
@@ -228,7 +246,7 @@ export async function render(
         "-threads:v",
         "2",
         "-preset",
-        draft ? "ultrafast" : "medium",
+        draft ? "ultrafast" : v.encodingPreset ?? "medium",
         "-crf",
         String(draft ? 28 : v.crf),
         "-pix_fmt",
@@ -257,11 +275,19 @@ export async function render(
       "-filter_complex_threads",
       "1",
     ];
-    clips.forEach((c) => args.push("-i", c));
     let video = "0:v",
       audio = "0:a";
     const filters: string[] = [];
-    for (let i = 1; i < tracks.length; i++) {
+    // Cut-only timelines read clips one at a time through the concat demuxer. Opening every
+    // clip as a separate input keeps all decoders alive at once and was OOM-killed at 33 shots.
+    const cutsOnly = tracks.every((t) => !t.overlap);
+    if (cutsOnly) {
+      const list = path.join(dir, "clips.txt");
+      const entry = (c: string) => `file '${c.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`;
+      await writeFile(list, clips.map(entry).join("\n"));
+      args.push("-f", "concat", "-safe", "0", "-i", list);
+    } else clips.forEach((c) => args.push("-i", c));
+    for (let i = 1; i < tracks.length && !cutsOnly; i++) {
       const t = tracks[i];
       if (t.overlap) {
         filters.push(
@@ -288,7 +314,7 @@ export async function render(
       "-threads:v",
       "2",
       "-preset",
-      draft ? "ultrafast" : "medium",
+      draft ? "ultrafast" : v.encodingPreset ?? "medium",
       "-crf",
       String(draft ? 28 : v.crf),
       "-c:a",
@@ -370,21 +396,24 @@ export async function render(
     mix.push(`[${a}]loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000[leveled]`);
     a = "leveled";
     let videoOut = "0:v";
-    if (doc.logoId) {
-      const logo = await file(doc.logoId);
+    const logoId = v.logoId === undefined ? doc.logoId : v.logoId;
+    if (logoId) {
+      const logo = await file(logoId);
       if (logo.asset.kind !== "image") throw Error("Logo must be an image");
       final.push("-i", logo.path);
       mix.push(
         `[${next++}:v]scale=${Math.round(w * 0.12)}:-1[logo]`,
-        `[0:v][logo]overlay=W-w-20:20[branded]`,
+        `[0:v][logo]overlay=W-w-20:20:enable='gte(t,${v.logoStart ?? 0})'[branded]`,
       );
       videoOut = "branded";
     }
-    if (v.captions || v.titleOverlay) {
+    if (v.captions || v.titleOverlay || captions(doc, v).some(c => c.display === "full-verse")) {
       const ass = path.join(dir, "captions.ass");
       await writeFile(ass, assFile(doc, v, w, h));
       mix.push(
-        `[${videoOut}]subtitles=filename='${escapeFilterPath(ass)}':fontsdir='${escapeFilterPath(path.resolve(process.env.FONT_DIR || "public/fonts"))}'[captioned]`,
+        // Complex (HarfBuzz) shaping is required for Telugu/Devanagari conjuncts; the default
+        // shaper renders them as separate letters with visible viramas.
+        `[${videoOut}]ass=filename='${escapeFilterPath(ass)}':fontsdir='${escapeFilterPath(path.resolve(process.env.FONT_DIR || "public/fonts"))}':shaping=complex[captioned]`,
       );
       videoOut = "captioned";
     }
@@ -401,7 +430,7 @@ export async function render(
       "-threads:v",
       "2",
       "-preset",
-      draft ? "ultrafast" : "medium",
+      draft ? "ultrafast" : v.encodingPreset ?? "medium",
       "-crf",
       String(draft ? 28 : v.crf),
       "-maxrate",

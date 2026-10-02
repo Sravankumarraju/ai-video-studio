@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { videoMetaSchema } from "./series-schema";
 export const capability = z.enum([
   "script",
   "image",
@@ -40,12 +41,15 @@ export const providerSchema = z.object({
 export type ProviderConfig = z.infer<typeof providerSchema>;
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
 const text = z.string().max(50000);
+export const publishingSchema = z.object({titles: z.array(z.string()).default([]), description: text.default(""), hashtags: text.default(""), thumbnailPrompt: text.default(""), chapters: text.default("")});
 export const captionSchema = z
   .object({
     id,
     start: z.number().nonnegative(),
     end: z.number().positive(),
     text: z.string().max(1000),
+    // A scripture/title card stays whole for its exact time range, independently of subtitles.
+    display: z.enum(["phrases", "full-verse"]).optional(),
     accuracy: z.enum(["approximate", "aligned", "manual"]).default("manual"),
     words: z
       .array(
@@ -87,6 +91,7 @@ export const sceneSchema = z.object({
     ])
     .default("zoom-in"),
   strength: z.number().min(0).max(0.4).default(0.12),
+  motionEasing: z.enum(["linear", "smooth"]).optional(),
   focalX: z.number().min(0).max(1).default(0.5),
   focalY: z.number().min(0).max(1).default(0.5),
   transition: z.enum(["cut", "crossfade"]).default("cut"),
@@ -115,6 +120,12 @@ export const variantSchema = z.object({
   id,
   name: z.string().max(100),
   aspect: z.enum(["landscape", "vertical"]),
+  // Undefined inherits the project logo; null explicitly disables it for this edition.
+  logoId: id.nullable().optional(),
+  logoStart: z.number().nonnegative().optional(),
+  publishing: publishingSchema.optional(),
+  encodingPreset: z.enum(["medium", "fast"]).optional(),
+  captionBottom: z.number().min(0.05).max(0.4).optional(),
   sceneIds: z.array(id).min(1),
   fps: z.number().int().min(24).max(60).default(30),
   crf: z.number().int().min(16).max(35).default(20),
@@ -140,6 +151,11 @@ export const variantSchema = z.object({
   background: z.boolean().default(false),
   position: z.enum(["bottom", "center", "top"]).default("bottom"),
   wordHighlight: z.boolean().default(false),
+  // Colour of the word being spoken when word highlighting is on.
+  highlightColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .default("#ffd54a"),
   sceneOverrides: z.record(id, sceneSchema).default({}),
   framing: z
     .record(
@@ -207,15 +223,9 @@ export const projectSchema = z.object({
   unknownCostPolicy: z.enum(["block", "allow"]).default("block"),
   reviewCheckpoints: z.boolean().default(true),
   stages: z.record(z.string(), z.boolean()).default({}),
-  publishing: z
-    .object({
-      titles: z.array(z.string()).default([]),
-      description: text.default(""),
-      hashtags: text.default(""),
-      thumbnailPrompt: text.default(""),
-      chapters: text.default(""),
-    })
-    .default({}),
+  publishing: publishingSchema.default({}),
+  // Present on videos created inside a series project; legacy projects omit it.
+  video: videoMetaSchema.optional(),
 });
 export type ProjectDoc = z.infer<typeof projectSchema>;
 export function newScene(n = 1, narration = ""): Scene {

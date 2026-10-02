@@ -17,7 +17,8 @@ export function timeline(doc: ProjectDoc, variant: Variant) {
   });
 }
 export function motionState(s: Scene, progress: number) {
-  const p = Math.min(1, Math.max(0, progress));
+  const u = Math.min(1, Math.max(0, progress));
+  const p = s.motionEasing === "smooth" ? u * u * (3 - 2 * u) : u;
   const pan = s.motion.startsWith("pan");
   const zoom =
     s.motion === "zoom-in"
@@ -118,4 +119,28 @@ export function warnings(
   if (duration(doc, v) > v.maxDuration)
     w.push(`Duration exceeds saved ${v.maxDuration}s platform preset`);
   return w;
+}
+// Everything the renderer reads for one version. Editing another version, prompts or
+// production notes must not make an existing export of this version look outdated.
+export function renderInputs(doc: ProjectDoc, variantId: string) {
+  const v = doc.variants.find((x) => x.id === variantId);
+  if (!v) return undefined;
+  const { name: _name, publishing: _publishing, ...settings } = v;
+  return JSON.stringify({
+    settings: { ...settings, sceneOverrides: undefined },
+    scenes: timeline(doc, v).map(({ scene }) => {
+      const {
+        title: _t, status: _s, error: _e, alternatives: _a, locked: _l, providers: _p,
+        modes: _m, promptOverrides: _o, imagePrompt: _i, videoPrompt: _v, visual: _vi,
+        dialogue: _d, characterIds: _c, ...rendered
+      } = scene;
+      return rendered;
+    }),
+    subtitleLanguage: doc.subtitleLanguage,
+    musicId: doc.musicId,
+    musicVolume: doc.musicVolume,
+    ducking: doc.ducking,
+    effects: doc.effects,
+    logoId: v.logoId === undefined ? doc.logoId : v.logoId,
+  });
 }

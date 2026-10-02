@@ -26,6 +26,7 @@ export function assetReferences(doc: ProjectDoc) {
       [
         doc.musicId,
         doc.logoId,
+        ...doc.variants.map((v) => v.logoId),
         doc.introId,
         doc.outroId,
         ...doc.effects.map((e) => e.assetId),
@@ -158,6 +159,7 @@ export function createMcpServer(connectionId: string) {
     { limit: z.number().int().min(1).max(100).default(30) },
     async ({ limit }) =>
       db.project.findMany({
+        where: { role: "video" },
         take: limit,
         orderBy: { updatedAt: "desc" },
         select: { id: true, title: true, revision: true, updatedAt: true },

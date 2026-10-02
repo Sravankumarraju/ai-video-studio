@@ -166,6 +166,7 @@ describe("MCP permissions and preservation", () => {
           id: "vertical",
           name: "Vertical",
           aspect: "vertical",
+          logoId: "foreign-version-logo",
           sceneIds: [scene.id],
           sceneOverrides: {
             [scene.id]: { ...scene, audioId: "variant-audio" },
@@ -174,7 +175,7 @@ describe("MCP permissions and preservation", () => {
       ],
     });
     expect(assetReferences(doc)).toEqual(
-      expect.arrayContaining(["foreign", "variant-audio"]),
+      expect.arrayContaining(["foreign", "variant-audio", "foreign-version-logo"]),
     );
     const r = await call("update_project", {
       projectId: "project-1",
