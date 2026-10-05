@@ -11,7 +11,7 @@ import { command, probe } from "../lib/media";
 import { render, assFile } from "../worker/render";
 const assets: Asset[] = [];
 beforeAll(async () => {
-  const media = await sampleMedia(path.resolve("test-output/fixtures"));
+  const media = await sampleMedia(path.resolve("test-output/fixtures/render"));
   for (const [file, kind, mime, id] of [
     [media.image, "image", "image/png", "image-1"],
     [media.audio, "audio", "audio/wav", "audio-1"],
@@ -81,7 +81,8 @@ describe("real FFmpeg rendering without AI credentials", () => {
     try {
       await render(doc, variant, assets, true, async () => {}, async () => false);
       const encodes = spy.mock.calls.map(c => c[1]).filter(args => args.includes("libx264"));
-      expect(encodes).toHaveLength(3);
+      // Cut-only joining copies normalized video; only normalization and final overlays encode.
+      expect(encodes).toHaveLength(2);
       for (const args of encodes) {
         const threads = args.indexOf("-threads:v");
         expect(threads).toBeGreaterThan(args.lastIndexOf("-i"));

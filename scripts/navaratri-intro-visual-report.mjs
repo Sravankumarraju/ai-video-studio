@@ -1,0 +1,10 @@
+import {readFile,writeFile} from 'node:fs/promises';
+const dir='data/productions/divine-wisdom/devi-navaratri-2026/00-intro/v1';
+const config=JSON.parse(await readFile(dir+'/episode.json','utf8'));
+const saved=JSON.parse(await readFile(dir+'/completed-timeline.json','utf8'));
+const variant=saved.document.variants.find(v=>v.id===config.variantId);
+let at=0;
+const stamp=t=>`${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;
+const rows=variant.sceneIds.map(id=>{const scene=saved.document.scenes.find(s=>s.id===id),section=config.sections.find(s=>id===config.prefix+'-'+s.id);const row=`| ${stamp(at)} | ${section.title} | ${section.image==='logo'?'Approved channel logo':section.image+'.png — Durga Devi'} |`;at+=scene.duration;return row;});
+await writeFile(dir+'/VISUAL-CORRECTION.md',`# Introduction visual correction · edition 3\n\nEvery scene after the channel welcome shows reviewed Durga Devi artwork. No Krishna, Arjuna, Mahabharata, human-family or generic landscape filler is used in this introduction. Existing narration, timing, captions and logo are preserved. No extra ElevenLabs calls were made.\n\n| Start | Scene | Active visual |\n| --- | --- | --- |\n${rows.join('\n')}\n\nEditable exact prompts and reference images: image-prompts.json and the series grace-art-queue.json. The rejected original images and outdated renders are retained as history, not current exports. The corrected draft is navaratri-intro-draft.mp4; the final export is navaratri-intro-full.mp4 once verification-full.json confirms full-file decoding and visualEdition 3.\n`);
+console.log('Introduction scene-by-scene visual review saved');

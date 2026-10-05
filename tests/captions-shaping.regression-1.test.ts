@@ -17,7 +17,7 @@ const telugu = "ధర్మక్షేత్రమైన కురుక్ష
 const assets: Asset[] = [];
 
 beforeAll(async () => {
-  const media = await sampleMedia(path.resolve("test-output/fixtures"));
+  const media = await sampleMedia(path.resolve("test-output/fixtures/captions-shaping"));
   for (const [file, kind, mime, id] of [[media.image, "image", "image/png", "image-1"], [media.audio, "audio", "audio/wav", "audio-1"]]) {
     const bytes = await readFile(file), key = storageKey("test", file.split(".").at(-1)!);
     await storage.put(key, bytes, mime);

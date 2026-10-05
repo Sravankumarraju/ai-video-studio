@@ -1,0 +1,11 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+const root='data/productions/divine-wisdom/devi-navaratri-2026',dir=root+'/00-intro/v1';
+const queue=JSON.parse(await readFile(root+'/grace-art-queue.json','utf8'));
+const extra=[
+ {slug:'intro-blessing',name:'blessing',destination:dir+'/blessing.png',reference:path.resolve(dir+'/hero.png'),prompt:'Create a new 16:9 landscape imaginary devotional painting using the supplied Durga Devi image as the identity and iconography reference. Durga Devi alone with her lion, graceful calm attentive face, dignified red and gold silk, exquisite crown and jewelry. Preserve the reference arms and hand-held attributes; no extra limbs. Medium-wide composition with a radiant heavenly lotus garden and soft galaxies behind her, golden blessings suggested by light, delicate flower petals and beautiful detail. Luminous Indian watercolor-and-ink, gold and indigo, spiritual grace and warmth. Full crown and hands readable, no crop. Bottom fifth uncluttered softly dark for Telugu captions. No humans, Krishna, Arjuna, Mahabharata characters, chariots, modern objects, text, watermark, collage, violence or animation.'},
+ {slug:'intro-sanctuary',name:'sanctuary',destination:dir+'/sanctuary.png',reference:path.resolve(dir+'/hero.png'),prompt:'Create a new 16:9 landscape imaginary devotional painting using the supplied Durga Devi image as the identity and iconography reference. Durga Devi and her lion visibly present in a breathtaking celestial lotus sanctuary, cascading warm golden light through carved arches, rich flowering trees and blue-gold stars, elegant serene maternal grace. Preserve the reference number of arms, face and identifying attributes faithfully; do not add limbs. A different composition from the reference: goddess on the left third with a vast ornate temple vista on the right, full crown, hands and lion visible. Painterly Indian watercolor-and-ink, beautifully detailed, devotional gold and indigo. Bottom fifth softly dark and uncluttered for captions. No humans, Krishna, Arjuna, Mahabharata characters, chariots, text, watermark, collage, horror or animation.'}
+];
+for(const spec of extra)if(!queue.some(s=>s.slug===spec.slug))queue.push(spec);
+await writeFile(root+'/grace-art-queue.json',JSON.stringify(queue,null,2));
+console.log(JSON.stringify(extra));

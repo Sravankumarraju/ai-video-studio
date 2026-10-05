@@ -1,8 +1,30 @@
 # Story Studio: project overview and implementation report
 
-Updated: 2 October 2026, Asia/Kolkata.
+Updated: 3 October 2026, Asia/Kolkata.
+
+### Preferred Chapter 1 visual revision: preview complete, Full HD rendering
+
+The user requested reusing existing generated illustrations to improve variety. The existing Chapter 1 project now has a separate Visual V2 edition: 34 distinct reused image hashes across 100 scenes, with no adjacent repeated images and holds of 16.5–38 seconds. The measured narration remains 39:16; all 47 meanings, 30 recordings and 3,348 caption word timestamps are preserved. No new provider calls or schema migration. Earlier assets and completed draft remain available; its superseded Full HD render was intentionally cancelled.
+
+The entire revised draft decoded successfully and actual browser playback/seek checks passed at start, middle and ending. Frames show readable Telugu labels and word highlighting. Full HD job 3abb6b4c-3750-4f27-8487-759ba0051251 remains in progress; no completed Full HD export or upload is claimed. The running render monitor and completion helper will download, decode, browser-check and package it when ready. Current report: data/productions/divine-wisdom/gita-chapter-1/visual-v2/COMPLETION_REPORT.md. Resume: node scripts/render-chapter-one.mjs data/productions/divine-wisdom/gita-chapter-1/visual-v2.
 
 This report describes the implemented application, completed videos, verified behavior and remaining work. Implemented provider support is distinguished from actual successful live calls. The current 16:9 update is separated from already exported videos.
+
+Current Divine Wisdom Telugu production rule: **one Bhagavad Gita shloka per video, Telugu long-form 16:9 only, no music, natural narration below five minutes**. Captions are enabled with large Telugu text and gold spoken-word highlighting. Earlier two-shloka and Shorts template descriptions below describe existing configurable templates and historical plans; they do not override the current episode delivery rule.
+
+## Episodes 003–006 · Bhagavad Gita 1.3–1.6
+
+Telugu long-form 16:9 videos follow the approved Episode 001 pattern: spoken full channel welcome, hook, canonical verse, meaning, explanation, original modern example, reflective practice and subscribe/like/share/comment closing. Only the selected verse is recited, displayed completely on a static background during its exact recitation. Captions default on with large Telugu text and gold spoken-word highlighting; devotional visuals use gentle eased pans. No music. Runtime: 1.3 = 292.75 seconds; 1.4 = 268.27; 1.5 = 263.39; 1.6 = 274.75. All narration calls succeeded; exact source prompts and resumable stage/job state are stored in each production folder. Episode 003 opening was corrected and the earlier draft preserved.
+
+Preview files passed complete H.264/AAC decoding, timing/preservation checks and actual Chromium playback. Episode 003 full 1080p file also passed full decoding and browser playback. All four new full 1080p exports passed complete decoding and actual Chromium playback; Episode 1.6 was played through the app Preview & exports screen. Detailed checks are in each verification-full.json.
+
+Episode 001 has a new thumbnail. The channel banner is 2560×1440 JPEG, 1,028,429 bytes (below 6 MB). A separate circle-safe profile logo reduces the complete emblem/name with generous padding; the approved in-video logo remains unchanged.
+
+## YouTube connection and private uploads
+
+Implemented encrypted Google OAuth web-client configuration, state-cookie/PKCE authorization, refresh tokens, channel identification, owner UI and a separate resumable background upload queue. Additive migration creates YoutubeConnection/YoutubeUpload without changing project/media/provider data. Uploads force Private visibility, disable subscriber notification, declare synthetic media, persist progress and video IDs, prevent duplicate render/channel uploads and verify the destination/privacy through actual API calls. Unknown session creation or expired sessions require review rather than silently creating another video.
+
+The approved batch includes the introduction and latest long-form Episodes 1.1–1.6, excluding drafts/replaced editions/Shorts. Seven JPEG thumbnails and byte-validated Telugu descriptions, chapters, SEO tags, source links, hashtags, AI disclosure and apology notes are prepared. The owner deferred YouTube uploads. No upload is queued/completed and live Google connection/upload calls remain unverified. The callback cookie failure was fixed and 15 focused tests passed; normal owner access stays protected. Setup and recovery: docs/YOUTUBE_PRIVATE_UPLOADS.md.
 
 ## Main goal: a reusable, project-based devotional video system
 
@@ -295,9 +317,15 @@ New timestamp fields are additive JSON fields. Old scenes load with `audioStart=
 
 Project **Divine Wisdom · Bhagavad Gita 1.2** (`4b0ebb3b-d7b5-4dbb-8bc1-bae9616823c2`) has a $10 budget and 50 generation calls. Telugu, Hindi and English scripts follow the same eight sections; section 0 now opens with a hook before the welcome, and the conclusion asks a specific comment question. Scripts: [Telugu](data/productions/divine-wisdom/gita-1-2/script-te.md), [Hindi](data/productions/divine-wisdom/gita-1-2/script-hi.md), [English](data/productions/divine-wisdom/gita-1-2/script-en.md). Thirteen narration batches are prepared (TE 4, HI 4, EN 5). The plan is 10 shots per language, each exported as 9:16 and 16:9 versions that share recordings and captions.
 
-Not yet done: no narration has been generated. The first request was refused before any charge because the project blocks unknown costs; the owner must allow unknown costs in Setup or set a price on the ElevenLabs profile. Eight new images must be generated from [IMAGE-PROMPTS.md](data/productions/divine-wisdom/gita-1-2/IMAGE-PROMPTS.md). Run with `node scripts/divine-episode.mjs data/productions/divine-wisdom/gita-1-2 <generate|assemble|drafts|fulls|download>`.
+This earlier multilingual plan remains preserved. Its initial narration request was refused before charging because unknown pricing was blocked. The latest Telugu devotional edition below supersedes that production path: new original narration and illustrations were generated successfully, with the complete channel name and one shloka per long video. Hindi and English plans remain unrendered. Do not resume the earlier pipeline unless that separate work is requested.
 
 ## Next step
+
+### Bhagavad Gita 1.2 — Episode 002 devotional edition
+
+Completed and verified Full HD export: 4:16, 1920×1080 H.264/AAC, 110,350,487 bytes. Actual whole-file decoding and app-browser playback passed; all 379 aligned caption words, contiguous narration ranges, opening channel name, recitation-only verse display and preservation of old scenes/assets were checked. Full-resolution welcome and shloka frames were visually reviewed. The app contains completed MP4/SRT/VTT downloads and the measured publishing metadata. No live YouTube changes were performed.
+
+Project `4b0ebb3b-d7b5-4dbb-8bc1-bae9616823c2`, new version `gita-1-2-te-devotional-v2`, follows the approved Episode 001 visual style and adds the complete spoken/displayed **Divine Wisdom Telugu** channel name. It covers only verse 1.2, with original Telugu explanation, practical example, exact stationary verse text during recitation, large highlighted captions, gentle pans and no music. Measured narration is 4:16, below five minutes. Existing Telugu/Hindi/English planning scenes remain intact. Resumable pipeline, prompts, script, illustrations, thumbnail, publishing package and verification results are in `data/productions/divine-wisdom/gita-1-2/devotional-v2`. Channel setup copy is in `docs/DIVINE-WISDOM-TELUGU-YOUTUBE-SETUP.md`; no live YouTube changes were made.
 
 ### Bhagavad Gita series introduction
 
@@ -305,7 +333,7 @@ Full export completed and verified: 1920×1080 H.264/AAC, 5:47, 155,983,641 byte
 
 New project `edef3ecc-f6c0-46ae-8ff1-7e31372816b3`, **Divine Wisdom Telugu · భగవద్గీత ఎందుకు? · సిరీస్ పరిచయం**, contains an original researched Telugu introduction with the life-manual analogy, practical examples and a verse-by-verse series invitation. Measured narration is 5:47. The owner explicitly requires only long-form 16:9 content; the promotional version was removed from the active project and no short full export will be made. Production state and the script, illustrations, thumbnail, prompts, description, chapters and verification results are saved in `data/productions/divine-wisdom/gita-series-intro`.
 
-From this production onward, Divine Wisdom captions default on with the approved large Telugu layout and gold spoken-word highlighting. Displayed title/chapter/verse labels need spoken narration; previously approved videos are preserved. YouTube publishing remains manual. The future authorized channel integration plan is in `docs/YOUTUBE-CHANNEL-INTEGRATION-PLAN.md`; uploads, channel access and scheduling are not implemented or verified yet.
+From this production onward, Divine Wisdom captions default on with the approved large Telugu layout and gold spoken-word highlighting. Displayed title/chapter/verse labels need spoken narration; previously approved videos are preserved. YouTube private-upload integration is now implemented; see `docs/YOUTUBE_PRIVATE_UPLOADS.md`. Actual OAuth/upload verification is shown in the upload history. Scheduling remains unimplemented.
 
 ### Latest Episode 001 refinement — 2 October 2026
 
@@ -317,10 +345,44 @@ The new edition has an independently editable publishing package, reviewed sourc
 
 The owner selected logo sample 1 (lotus and book) and requested a recreation of **Episode 001 = Bhagavad Gita 1.1** using the approved original Telugu narration and explanation pattern. The current edition is **Divine Wisdom Telugu · 001 / 1.1 · recreated · 16:9**, variant `gita-1-1-te-recreated-v3`, inside the original project `a39b4823-f4d4-436b-be68-7d6694418d36`.
 
-The current series format supersedes the earlier combined-verse/Shorts production plan: **one shloka per long-form 16:9 video, at most five minutes, no music or musical effects**. Show the selected logo during the spoken welcome, then the title, with a small logo throughout the rest of the video. Use beautiful imaginative devotional visuals for explanation. Keep the exact complete shloka on one calm static background only during its exact recitation, then remove it. Ordinary captions default off; if the owner enables them, use large aligned spoken-word captions. End with subscribe, like, share, and a specific question about what the viewer newly learned.
+The current series format supersedes the earlier combined-verse/Shorts production plan: **one shloka per long-form 16:9 video, at most five minutes, no music or musical effects**. Show the selected logo during the spoken welcome, then the title, with a small logo throughout the rest of the video. Use beautiful imaginative devotional visuals for explanation. Keep the exact complete shloka on one calm static background only during its exact recitation, then remove it. Ordinary Telugu captions default on with large aligned text and gold spoken-word highlighting; the owner can disable them. End with subscribe, like, share, and a specific question about what the viewer newly learned.
 
 The recreated video is about **4:08**. Twelve new image prompts and generated assets are saved and editable in the app. Original recordings are reused without shortening or fades at image cuts; the new closing narration was successfully generated with the saved ElevenLabs voice and matched to the original bass/pitch treatment. Previous editions and scenes are preserved. The complete-verse cue and version-specific logo are additive optional JSON fields; no SQL migration is needed. Upgrade the app and worker together before editing these fields.
 
 Production files and resumable state: `data/productions/divine-wisdom/gita-1-1/recreated-v3`. Commands: `scripts/divine-recreate-001.mjs` for production/resume; `node --import tsx scripts/divine-recreate-001-check.mjs draft|full` for real MP4 decoding, timing and preservation checks. The draft MP4 was decoded completely and played successfully in the owner browser; verse display from 1:14.44 to 1:24.84 matches the editor and export. The 1080p export's final verification is recorded in that folder once rendering completes. TypeScript and 38 focused caption/render/MCP checks passed.
 
 Review the latest 16:9 Telugu Episode 001 refinement. Future episodes must follow the owner's updated one-shloka, long-form-only direction. Keep Telugu, Hindi and English equivalent in meaning, with shared reviewed visuals and separate voices/captions; generate only the authorized language versions. Review scripts and narration spending, generate visuals and narration, assemble, review drafts and export. Mark integrations and catalogue entries verified/produced only after actual successful work.
+
+
+## Final delivery · 3 October 2026
+
+Episodes 1.3–1.6 are complete and verified. The seven approved productions are grouped and visible in Bhagavad Gita · Telugu without changing their saved documents/revisions. Full delivery report: `data/productions/divine-wisdom/COMPLETION_REPORT.md`. The later private-upload verification supersedes the earlier deferred status: introduction and Episodes 1.1–1.6 were actually uploaded privately with thumbnails.
+
+### Episodes 1.7–1.10 and complete Chapter 1
+
+All four latest 16:9 Telugu Episodes 1.7–1.10 are completed, downloaded, fully decoded and played successfully in the app browser. Exact complete recitation-only shloka frames were visually inspected at 1080p. Durations: 1.7 4:35, 1.8 4:35, 1.9 4:41, 1.10 4:37. Actual authorized narration succeeded with the owner's selected voice; no music or Shorts. Editable scripts, prompts, illustrations, thumbnails, captions and verified publishing ZIPs are persisted per episode. No schema migration or existing-project changes.
+
+Private uploads verified on Divine Wisdom Telugu: 1.7 `l7yhg_qwrS8`, 1.8 `PI-H31i3uBQ`, 1.9 `dv7gV1hGJKs`. Episode 1.10 upload was explicitly rejected before any bytes were sent: Google `uploadLimitExceeded`. Its final video and publishing package are ready, but it has not been uploaded. Do not claim all four uploads completed. Report: `data/productions/divine-wisdom/EPISODES_007_010_REPORT.md`; actual results: `youtube-007-010-upload-verification.json` in the same directory.
+
+The owner then requested a separate complete Chapter 1 meaning-only video, covering every verse 1.1–1.47 in Telugu with verse numbers, no Sanskrit recitation. Project `ae2496cf-f774-478e-9b7c-70c342d958d7` is grouped in the same series. Its 60-section, 3,348-word original script, seven new images including thumbnail, approved supporting artwork and 30 resumable narration batches are prepared in `data/productions/divine-wisdom/gita-chapter-1/meaning-v1`. Actual final timing/render verification is recorded there when completed. Its expressly authorized longer duration does not change the five-minute policy for individual episodes. Chapter coverage and duration policy have five focused regression checks. Private publishing remains the standing preference; channel upload limits must be respected.
+
+## Chapter 1 story rewrite (2026-10-03)
+
+Preferred new project: 145e1dd0-9b7f-4077-aded-f9fe3485888a. Folder: data/productions/divine-wisdom/gita-chapter-1/story-v4. Complete revised script: 3,229 Telugu words, all 47 verse meanings in order, six narrative sections, short branded welcome, explicit "అధ్యాయం 1, శ్లోకం N" voice/caption introductions, mid-video and closing subscribe/like/share/comment reminders. 134 visual sections use preserved devotional paintings. Waterfall and animation are excluded at owner request. Soft original synthesized music is saved at volume 0.22 with voice ducking; no external samples or paid music calls.
+
+Status: Owner explicitly approved 28 voice calls and unknown-price calls for this project. All 28 authorized ElevenLabs calls succeeded. The finished narration measures 36:54; the preview has rendered, passed full-file decoding and start/middle/end browser playback; Full HD export is in final encoding and its verification is still pending. Earlier editions are preserved. Episodes Chapter 1, Shlokas 11-14 will follow this final chapter export.
+
+Renderer improvement: cut-only composition now stream-copies normalized H.264 video and continues to re-encode audio. Crossfade composition still encodes. Real FFmpeg regression checks cover 33 varied-length cuts, output A/V duration and crossfade behavior. All 133 app tests, 18 production-script checks, TypeScript and production Docker build passed. No persisted schema migration.
+
+
+<!-- YOUTUBE_DELIVERY_STATUS -->
+## Verified private YouTube delivery
+
+16 latest long-form videos are uploaded with thumbnails and added to the private Bhagavad Gita playlist: https://www.youtube.com/playlist?list=PLG6MJI9Kus00. Existing successful video IDs were preserved. Actual YouTube API calls verified channel ownership, private visibility and playlist membership. See data/productions/divine-wisdom/YOUTUBE_DELIVERY.md and YOUTUBE_DELIVERY.json for individual videos and processing status.
+<!-- END_YOUTUBE_DELIVERY_STATUS -->
+
+## Complete-chapter series separation and Chapter 1 audio correction (2026-10-04)
+
+The full-chapter Telugu videos now have a separate local series, `dc47db6d-168e-4405-b1c5-3dcb955eb1a8`, distinct from the individual-shloka series. The persistent instructions are `data/productions/divine-wisdom/GITA-FULL-CHAPTER-SERIES-PROMPT.md`: announce the verified chapter title, explain why it has that name, preserve every verse meaning, and preview only the next chapter. No YouTube mutation was made.
+
+Chapter 1 corrected variant: `gita-chapter-1-te-audio-corrected-v5`, project `145e1dd0-9b7f-4077-aded-f9fe3485888a`. Three short live voice calls succeeded (658 characters). The reported line formerly at about 14:54 was regenerated; the opening explains Arjuna Vishada Yoga; the individual-Shloka-11 teaser was removed and replaced by a Chapter-2/Sankhya-Yoga preview. All 47 meanings and all unaffected explanation audio were preserved. Regression checks also confirmed the original edition is unchanged. The recovered 37:26, 1920x1080 MP4 passed full-file decoding and checksum validation and was restored to the completed app export. Verification lives in `data/productions/divine-wisdom/gita-chapter-1/audio-corrected-v5/verification-full.json`. The owner still needs to listen to the corrected pronunciation. Approved cleanup removed 45.51 GB of unused build cache and three abandoned render folders; physical C: disk reclamation awaits administrator compaction because Windows elevation was canceled. No project or source-media deletion.

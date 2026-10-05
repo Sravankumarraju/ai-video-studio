@@ -1,3 +1,4 @@
+import { mediaResponse } from "@/lib/media-response";
 import { cleanupTemp } from "@/lib/temp";
 import { portableDocument, remapMedia, safeProvenance } from "@/lib/backup";
 import { db } from "@/lib/db";
@@ -538,8 +539,8 @@ async function route(
     }
     if (p[0] === "assets" && method === "GET") {
       const asset = await db.asset.findUniqueOrThrow({ where: { id: p[1] } });
-      return fileResponse(
-        await storage.get(asset.storageKey),
+      return mediaResponse(
+        asset.storageKey,
         asset.mime,
         req,
         asset.name,
@@ -712,8 +713,8 @@ async function route(
         };
         const key =
           kind === "srt" ? r.srtKey : kind === "vtt" ? r.vttKey : r.mp4Key;
-        return fileResponse(
-          await storage.get(key),
+        return mediaResponse(
+          key,
           kind === "mp4"
             ? "video/mp4"
             : kind === "vtt"
@@ -741,38 +742,6 @@ async function route(
         : msg.slice(0, 1200);
     return response({ error: safe }, safe === "Unauthorized" ? 401 : 400);
   }
-}
-function fileResponse(bytes: Buffer, mime: string, req: Request, name: string) {
-  const range = req.headers.get("range");
-  const headers: Record<string, string> = {
-    "Content-Type": mime,
-    "Accept-Ranges": "bytes",
-    "Cache-Control": "private, no-store",
-    "X-Content-Type-Options": "nosniff",
-    "Content-Disposition": `inline; filename="${name.replace(/[^a-zA-Z0-9_.-]/g, "_")}"`,
-  };
-  if (range) {
-    const match = /^bytes=(\d+)-(\d*)$/.exec(range);
-    if (!match) return new Response(null, { status: 416 });
-    const start = Number(match[1]),
-      end = Math.min(
-        match[2] ? Number(match[2]) : bytes.length - 1,
-        bytes.length - 1,
-      );
-    if (start > end || start >= bytes.length)
-      return new Response(null, {
-        status: 416,
-        headers: { "Content-Range": `bytes */${bytes.length}` },
-      });
-    headers["Content-Range"] = `bytes ${start}-${end}/${bytes.length}`;
-    headers["Content-Length"] = String(end - start + 1);
-    return new Response(new Uint8Array(bytes.subarray(start, end + 1)), {
-      status: 206,
-      headers,
-    });
-  }
-  headers["Content-Length"] = String(bytes.length);
-  return new Response(new Uint8Array(bytes), { headers });
 }
 export const GET = route;
 export const POST = route;

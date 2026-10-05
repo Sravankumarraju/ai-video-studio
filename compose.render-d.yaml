@@ -1,0 +1,10 @@
+# Render-only storage override. Preserves the current worker build for this batch.
+# Start with: docker compose -f compose.yaml -f compose.render-d.yaml up -d --no-build --pull never worker
+services:
+  worker:
+    image: story-studio:render-d-reuse
+    environment:
+      TMPDIR: /app/render-temp
+    volumes:
+      - ./data/render-temp:/app/render-temp
+      - ./data/render-checkpoints:/app/data/media/render-checkpoints

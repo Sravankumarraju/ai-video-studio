@@ -55,6 +55,19 @@ services:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
     restart: unless-stopped
+  youtube-worker:
+    image: story-studio:local
+    command: ["sh", "-c", "npm run db:migrate && npm run worker:youtube"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://studio:studio@db:5432/studio
+      REDIS_URL: redis://redis:6379
+      MEDIA_ROOT: /app/data/media
+    volumes: ["media:/app/data/media"]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
 volumes:
   postgres:
   redis:

@@ -10,6 +10,39 @@ model Owner {
   defaults Json @default("{}")
   createdAt DateTime @default(now())
 }
+model YoutubeConnection {
+  id String @id @default("owner")
+  encryptedClient String
+  encryptedTokens String?
+  channelId String?
+  channelTitle String?
+  stateHash String?
+  encryptedVerifier String?
+  stateExpiresAt DateTime?
+  updatedAt DateTime @updatedAt
+}
+model YoutubeUpload {
+  id String @id @default(uuid())
+  renderJobId String
+  projectId String
+  channelId String
+  thumbnailAssetId String
+  metadata Json
+  state String @default("queued")
+  stage String @default("Queued")
+  encryptedSession String?
+  totalBytes Float @default(0)
+  bytesUploaded Float @default(0)
+  videoId String?
+  thumbnailApplied Boolean @default(false)
+  cancelRequested Boolean @default(false)
+  error String?
+  verifiedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([renderJobId, channelId])
+  @@index([state, createdAt])
+}
 model McpConnection {
   id String @id @default(uuid())
   name String

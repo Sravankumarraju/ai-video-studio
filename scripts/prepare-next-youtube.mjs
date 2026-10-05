@@ -1,0 +1,44 @@
+import 'dotenv/config';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import {readFile,writeFile} from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
+import assert from 'node:assert/strict';
+const selected=process.argv.length>2?process.argv.slice(2).map(Number):[7,8,9,10];
+const later=selected.every(n=>n>=11&&n<=14);
+const newest=selected.every(n=>n>=15&&n<=20);
+const output=`data/productions/divine-wisdom/youtube-private-${newest?'015-020':later?'011-014':'007-010'}-batch.json`;
+const old=await readFile(output,'utf8').then(JSON.parse).catch(()=>({videos:[]}));
+const c=new Client({name:'gita-private-upload-preparation',version:'1'});
+await c.connect(new StreamableHTTPClientTransport(new URL('http://localhost:3000/api/mcp'),{requestInit:{headers:{Authorization:`Bearer ${process.env.STORY_STUDIO_MCP_TOKEN}`,Connection:'close'}}}));
+async function call(name,args){const r=await c.callTool({name,arguments:args}),t=r.content.find(x=>x.type==='text')?.text;assert(!r.isError,t);return JSON.parse(t);}
+assert(selected.length&&selected.every(n=>Number.isInteger(n)&&n>=7&&n<=20)&&new Set(selected).size===selected.length);
+const videos=old.videos.filter(v=>!selected.includes(Number(v.episode.split('.')[1])));
+try{for(const n of selected){
+ const dir=`data/productions/divine-wisdom/gita-1-${n}/devotional-v1`;
+ const config=JSON.parse(await readFile(`${dir}/episode.json`,'utf8'));
+ const state=JSON.parse(await readFile(`${dir}/state.json`,'utf8'));
+ const publishing=JSON.parse(await readFile(`${dir}/publishing.json`,'utf8'));
+ const verification=JSON.parse(await readFile(`${dir}/verification-full.json`,'utf8'));
+ assert(verification.decodedEntireFile&&verification.seconds<=300&&verification.width===1920);
+ const renderJobId=state.renderJobs.full;
+ const oldEntry=old.videos.find(x=>x.renderJobId===renderJobId);
+ const jpeg=`${dir}/thumbnail-upload.jpg`;
+ execFileSync('ffmpeg',['-hide_banner','-v','error','-y','-i',`${dir}/thumbnail.png`,'-q:v','2',jpeg]);
+ const bytes=await readFile(jpeg);assert(bytes.length<2*1024*1024);
+ const thumbnailAssetId=oldEntry?.thumbnailAssetId||(await call('import_asset',{projectId:config.projectId,name:`youtube-episode-${config.episodeNumber}-thumbnail.jpg`,base64:bytes.toString('base64')})).id;
+ const apology='శ్లోక పఠనం, ఉచ్చారణ, అనువాదం లేదా వివరణలో పొరపాటు ఉంటే క్షమాపణలు కోరుతున్నాం. సరైన మూలంతో కామెంట్‌లో తెలియజేయండి; పరిశీలించి సరిచేస్తాం.';
+ let description=`Divine Wisdom Telugu\nభగవద్గీత ${config.verseRef} · Episode ${config.episodeNumber}\n\n${config.descriptionSummary}\n\nమూల శ్లోకం:\n${config.verseDisplay}\n\nవీడియో భాగాలు:\n${publishing.chapters}\n\nమూలాలు:\n${config.sources.join('\n')}\n\nవివరణలోని ఆధునిక ఉదాహరణలు మన ఆచరణ కోసం ఇచ్చిన అన్వయాలు. ${n===10?'ఈ వీడియో అపరిమితం/పరిమితం అనే వ్యాఖ్యాన పఠనాన్ని అనుసరిస్తుంది; ఇతర పఠనాలు ఉన్నాయని వివరణలో స్పష్టంగా చెప్పాం.':''}\nAI disclosure: Illustrations and narration are AI-generated. Images are artistic interpretations, not historical photographs.\n\nసబ్‌స్క్రైబ్, లైక్, షేర్ చేయండి. మీరు నేర్చుకున్న విషయాన్ని కామెంట్‌లో చెప్పండి.\nతర్వాతి వీడియో: భగవద్గీత ${config.nextVerseRef}.\n\n#BhagavadGita #BhagavadGitaTelugu #DivineWisdomTelugu #TeluguSpirituality\n\n${apology}`;
+ if(Buffer.byteLength(description)>5000)description=description.replace(config.descriptionSummary,`శ్లోకం ${config.verseRef}: పఠనం, తెలుగు అర్థం, వివరణ మరియు రోజువారీ ఉదాహరణ.`);
+ assert(Buffer.byteLength(description)<=5000);
+ const metadata={title:config.videoTitle,description,tags:['Bhagavad Gita Telugu','Divine Wisdom Telugu','భగవద్గీత','Telugu spiritual stories','Gita Telugu meaning','Lord Krishna','Telugu devotional',`Bhagavad Gita ${config.verseRef}`,`Gita episode ${config.episodeNumber}`]};
+ assert([...metadata.title].length<=100);
+ const p=await call('get_project',{projectId:config.projectId}),edition=p.document.variants.find(v=>v.id===config.variantId);assert(edition);edition.publishing={...edition.publishing,titles:[metadata.title],description};p.document.publishing=edition.publishing;await call('update_project',{projectId:p.id,expectedRevision:p.revision,document:p.document});assert.equal((await call('get_job',{jobId:renderJobId})).state,'completed');
+ await writeFile(`${dir}/publishing.json`,JSON.stringify(edition.publishing,null,2));await writeFile(`${dir}/description-te.md`,description);
+ await writeFile(`${dir}/youtube-description-te.txt`,description);
+ await writeFile(`${dir}/youtube-metadata.json`,JSON.stringify({...metadata,privacyStatus:'private',containsSyntheticMedia:true},null,2));
+ videos.push({...oldEntry,episode:config.verseRef,projectId:config.projectId,renderJobId,thumbnailAssetId,metadata});
+  videos.sort((a,b)=>Number(a.episode.split('.')[1])-Number(b.episode.split('.')[1]));
+ await writeFile(output,JSON.stringify({privacy:'private',selection:newest?'Latest long-form Telugu Episodes 1.15–1.20 only':later?'Latest long-form Telugu Episodes 1.11–1.14 only':'Latest long-form Telugu Episodes 1.7–1.10 only',videos},null,2));
+ console.log(JSON.stringify({episode:config.verseRef,renderJobId,descriptionBytes:Buffer.byteLength(description),thumbnailBytes:bytes.length}));
+}}finally{await c.close();}

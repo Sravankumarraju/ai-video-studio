@@ -1,5 +1,6 @@
 "use client";
 import { McpSettings } from "./mcp-settings";
+import { YoutubeSettings, YoutubeUploadControls } from "./youtube-settings";
 import { isExportForVariant } from "@/lib/export-visibility";
 import { api, Button, Field, Empty, Modal } from "./ui";
 import { SeriesCards, NewSeriesModal, SeriesPage, PlanStage, StatusChip, statusOf, type SeriesRow } from "./series";
@@ -524,6 +525,7 @@ export default function Studio() {
             ["All projects", FolderOpen],
             ["AI Providers", Settings],
             ["MCP Connectors", Sparkles],
+            ["YouTube uploads", Sparkles],
             ["Prompt templates", BookOpen],
             ["Usage & jobs", Activity],
           ].map(([name, Icon]) => {
@@ -884,6 +886,8 @@ export default function Studio() {
             refresh={refresh}
             notify={setNotice}
           />
+        ) : view === "YouTube uploads" ? (
+          <YoutubeSettings />
         ) : view === "MCP Connectors" ? (
           <McpSettings />
         ) : view === "AI Providers" ? (
@@ -1736,6 +1740,7 @@ export default function Studio() {
                     <Sparkles size={15} /> Generate metadata
                   </Button>
                 </div>
+                <YoutubeUploadControls key={variant?.id ?? project.id} projectId={project.id} variantId={variant?.id} jobs={jobs} assets={assets} publishing={publishing} />
                 <Field label="Title options (one per line)">
                   <select aria-label="Publishing version" value={variant?.id ?? ""} onChange={e => setVariantId(e.target.value)}>
                     {doc.variants.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}

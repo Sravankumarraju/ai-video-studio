@@ -284,7 +284,9 @@ export async function render(
     if (cutsOnly) {
       const list = path.join(dir, "clips.txt");
       const entry = (c: string) => `file '${c.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`;
-      await writeFile(list, clips.map(entry).join("\n"));
+      // Container duration can include rounded video frames/AAC padding. Explicit timeline
+      // durations keep later narration/caption starts from drifting across many short shots.
+      await writeFile(list, clips.map((clip, i) => `${entry(clip)}\nduration ${tracks[i].scene.duration}`).join("\n"));
       args.push("-f", "concat", "-safe", "0", "-i", list);
     } else clips.forEach((c) => args.push("-i", c));
     for (let i = 1; i < tracks.length && !cutsOnly; i++) {
@@ -310,7 +312,7 @@ export async function render(
       "-map",
       filters.length ? `[${audio}]` : audio,
       "-c:v",
-      "libx264",
+      cutsOnly ? "copy" : "libx264",
       "-threads:v",
       "2",
       "-preset",

@@ -12,7 +12,7 @@ import { render } from "../worker/render";
 
 const assets: Asset[] = [];
 beforeAll(async () => {
-  const media = await sampleMedia(path.resolve("test-output/fixtures"));
+  const media = await sampleMedia(path.resolve("test-output/fixtures/render-memory"));
   for (const [file, kind, mime, id] of [[media.image, "image", "image/png", "image-1"], [media.audio, "audio", "audio/wav", "audio-1"]]) {
     const bytes = await readFile(file), key = storageKey("test", file.split(".").at(-1)!);
     await storage.put(key, bytes, mime);
@@ -23,7 +23,7 @@ beforeAll(async () => {
 
 describe("composition memory", () => {
   it("joins many cut-only shots through one sequential input and keeps audio in sync", async () => {
-    const scenes = Array.from({ length: 12 }, (_, i) => ({ ...newScene(i + 1), duration: 1, assetId: "image-1", audioId: "audio-1", audioStart: i % 2, audioSlice: true }));
+    const scenes = Array.from({ length: 33 }, (_, i) => ({ ...newScene(i + 1), duration: i % 2 ? 1.073 : 0.927, assetId: "image-1", audioId: "audio-1", audioStart: i % 2, audioSlice: true }));
     const v = variantSchema.parse({ id: "many-cuts", name: "Many cuts", aspect: "landscape", sceneIds: scenes.map(s => s.id) });
     const doc = projectSchema.parse({ title: "Many cuts", scenes, variants: [v] });
     const spy = vi.spyOn(mediaCommands, "command");
@@ -34,8 +34,10 @@ describe("composition memory", () => {
       expect(compose.filter(a => a === "-i")).toHaveLength(1);
       expect(compose[compose.indexOf("-i") - 1]).toBe("0");
       expect(compose).toContain("concat");
+      expect(compose[compose.indexOf("-c:v") + 1]).toBe("copy");
       const streams = JSON.parse(await command(process.env.FFPROBE_PATH || "ffprobe", ["-v", "error", "-show_entries", "stream=codec_type,duration", "-of", "json", localPath(result.mp4Key)])).streams as { codec_type: string; duration: string }[];
-      for (const s of streams) expect(Number(s.duration)).toBeCloseTo(12, 1);
+      const expected = scenes.reduce((n, s) => n + s.duration, 0);
+      for (const s of streams) expect(Math.abs(Number(s.duration) - expected)).toBeLessThan(0.1);
     } finally { spy.mockRestore(); }
   });
   it("still uses the crossfade filter graph when shots overlap", async () => {
@@ -48,6 +50,7 @@ describe("composition memory", () => {
       const compose = spy.mock.calls.map(c => c[1]).find(args => args.some(a => a.endsWith("joined.mp4")))!;
       expect(compose[compose.indexOf("-filter_complex") + 1]).toContain("xfade");
       expect(compose).not.toContain("concat");
+      expect(compose[compose.indexOf("-c:v") + 1]).toBe("libx264");
     } finally { spy.mockRestore(); }
   });
 });
