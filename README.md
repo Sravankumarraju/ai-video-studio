@@ -59,6 +59,8 @@ Exports use H.264/AAC, 48 kHz stereo, configurable frame rate, CRF and bitrate c
 
 ## AI setup
 
+The **Devotional research** sidebar view contains the Divine Wisdom Telugu discovery backlog, source candidates and two starter production drafts. Download the research or individual draft JSON there. Run `npm run prepare:devotional` to regenerate local copies under `data/productions/devotional-research/` without connecting to providers or the database. These drafts require edition, text, reuse and pronunciation review before production. See [devotional research workflow](docs/DEVOTIONAL-RESEARCH.md).
+
 In AI Providers, create independent profiles for script, image, video, voice and transcription. Multiple profiles may use the same provider with different encrypted keys. Defaults, project overrides and scene overrides are independent. Changing a profile does not remove assets. Each queued job freezes provider configuration and an encrypted credential snapshot.
 
 Adapters included:

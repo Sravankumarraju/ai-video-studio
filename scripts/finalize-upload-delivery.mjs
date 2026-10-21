@@ -1,0 +1,20 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const root='data/productions/divine-wisdom/';
+const read=async name=>JSON.parse((await readFile(root+name,'utf8')).replace(/^\uFEFF/,''));
+const save=async(name,value)=>writeFile(root+name,JSON.stringify(value,null,2)+'\n');
+const chapters=await read('YOUTUBE_FULL_CHAPTER_PLAYLIST_VERIFICATION.json');
+const shorts=await read('YOUTUBE_SHORTS_PLAYLIST_VERIFICATION.json');
+const deletion=await read('devi-navaratri-2026/LOCAL_VIDEO_DELETION_2026-10-06.json');
+assert.equal(chapters.videos.length,6);assert.equal(shorts.videos.length,8);
+assert([...chapters.videos,...shorts.videos].every(v=>v.processingStatus==='succeeded'&&v.privacyStatus==='private'));
+const playlist=await read('gita-full-chapters-playlist.json');
+playlist.completedChapters=chapters.positions.map((v,i)=>({chapter:i+1,videoId:v.videoId,url:`https://www.youtube.com/watch?v=${v.videoId}`,status:'uploaded-private-in-dedicated-playlist'}));
+playlist.verifiedAt=chapters.verifiedAt;
+await save('gita-full-chapters-playlist.json',playlist);
+const uploads=await read('CHAPTERS_5_6_AND_QUESTION_SHORTS_UPLOADS.json');
+for(const row of uploads.videos){const current=[...chapters.videos,...shorts.videos].find(v=>v.videoId===row.videoId);assert(current);row.processingStatus=current.processingStatus;row.state='verified-private-in-playlist';row.playlistVerifiedAt=new Date().toISOString();}
+uploads.completedAt=new Date().toISOString();
+await save('CHAPTERS_5_6_AND_QUESTION_SHORTS_UPLOADS.json',uploads);
+await save('CHAPTERS_AND_SHORTS_DELIVERY_2026-10-06.json',{completedAt:new Date().toISOString(),fullChapters:chapters,shorts,localNavaratriVideoDeletion:{fileCount:deletion.fileCount,reclaimedBytes:deletion.reclaimedBytes,remainingMp4Count:deletion.remainingMp4Count,deletedAt:deletion.deletedAt}});
+console.log(JSON.stringify({fullChapters:6,shorts:8,processing:'succeeded',visibility:'private',deletedNavaratriMp4:deletion.fileCount,reclaimedBytes:deletion.reclaimedBytes}));

@@ -1,4 +1,18 @@
 @import "tailwindcss";
+.devotional-research .panel { margin-bottom: 20px; }
+.devotional-research .panel p + p { margin-top: 12px; }
+.devotional-columns { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr); gap: 20px; align-items: start; }
+.devotional-work-list { display: grid; gap: 8px; max-height: 720px; overflow-y: auto; }
+.devotional-work { display: grid; gap: 5px; text-align: left; padding: 14px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 10px; }
+.devotional-work.selected { border-color: var(--accent); }
+.devotional-work span, .devotional-work small { color: var(--muted); }
+.devotional-detail h3 { margin-top: 22px; margin-bottom: 8px; }
+.devotional-detail dd { margin: 0 0 12px; color: var(--muted); overflow-wrap: anywhere; }
+.devotional-detail ul, .devotional-research > .panel ul { padding-left: 22px; list-style: disc; }
+.devotional-detail li { margin-bottom: 8px; }
+.devotional-detail a, .devotional-research .panel a { text-decoration: underline; }
+.devotional-filters { flex-wrap: wrap; align-items: end; margin-bottom: 20px; }
+@media (max-width: 900px) { .devotional-columns { grid-template-columns: 1fr; } .devotional-work-list { max-height: 360px; } }
 @font-face {
   font-family: Studio;
   src: url("/fonts/NotoSans.ttf") format("truetype");

@@ -18,7 +18,7 @@ await until('return [...document.querySelectorAll("select")].some(s=>[...s.optio
 await evaluate('const s=[...document.querySelectorAll("select")].find(s=>[...s.options].some(o=>o.value===target.variantId));if(s.value!==target.variantId){Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,"value").set.call(s,target.variantId);s.dispatchEvent(new Event("change",{bubbles:true}));}return true;');
 const selectVideo='const v=[...document.querySelectorAll("video")].find(v=>v.src.includes(target.jobId));';
 const info=await until(selectVideo+'return v&&Number.isFinite(v.duration)&&v.videoWidth?{seconds:v.duration,width:v.videoWidth,height:v.videoHeight}:null;','Export metadata',60);
-assert.equal(info.width,target.width);assert.equal(info.height,target.height);if(config.productionKind==='chapter-meaning')assert(info.seconds>1800);else assert(info.seconds>=60&&info.seconds<=300);
+assert.equal(info.width,target.width);assert.equal(info.height,target.height);if(config.productionKind==='chapter-meaning'){assert(info.seconds>300&&info.seconds<=(config.maximumDuration||7200));if(state.seconds)assert(Math.abs(info.seconds-state.seconds)<.2,'Browser duration differs from assembled narration');}else assert(info.seconds>=60&&info.seconds<=300);
 const samples=[];
 for(const point of [0,info.seconds/2,info.seconds-15]){
  await evaluate(selectVideo+`if(!v)throw Error('Expected export absent');v.pause();v.muted=true;delete v.dataset.playbackCheckError;v.currentTime=${point};v.play().catch(e=>{v.dataset.playbackCheckError=e.message;});return true;`);

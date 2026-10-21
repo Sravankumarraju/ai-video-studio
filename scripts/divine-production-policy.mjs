@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 export function productionPolicy(config){
  const chapter=config.productionKind==='chapter-meaning';
  const chapterNumber=config.chapterNumber??1;
- const verseCounts=[47,72];
+ const verseCounts=[47,72,43,42,29,47,30,28,34,42];
  const maximumDuration=chapter?(config.maximumDuration??7200):300;
  assert(Number.isFinite(maximumDuration)&&maximumDuration>0&&maximumDuration<=7200,'Invalid maximum duration');
  if(chapter){

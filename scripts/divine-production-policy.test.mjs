@@ -20,6 +20,12 @@ test('chapter verse introductions use the configured chapter number',()=>{
  assert.equal(expectedChapterVerseIntroduction({explicitChapterLabels:true},2,72),'అధ్యాయం 2, శ్లోకం 72.');
  assert.equal(expectedChapterVerseIntroduction({},2,11),'శ్లోకం 2.11.');
 });
+test('Chapter 3 requires all 43 meanings in order',()=>{
+ const sections=Array.from({length:43},(_,i)=>({id:`verse-${i+1}`,verseNumber:i+1}));
+ assert.equal(productionPolicy({productionKind:'chapter-meaning',chapterNumber:3,sections}).verseCount,43);
+ for(const bad of [sections.slice(0,42),sections.toReversed(),[...sections,{verseNumber:43}]])assert.throws(()=>productionPolicy({productionKind:'chapter-meaning',chapterNumber:3,sections:bad}));
+ assert.equal(expectedChapterVerseIntroduction({explicitChapterLabels:true},3,43),'అధ్యాయం 3, శ్లోకం 43.');
+});
 test('missing, repeated or out-of-order chapter verses block production',()=>{for(const sections of [complete().sections.slice(1),[...complete().sections,{verseNumber:47}],complete().sections.toReversed()])assert.throws(()=>productionPolicy({...complete(),sections}));});
 test('meaning-only chapter rejects a Sanskrit recitation scene',()=>assert.throws(()=>productionPolicy({...complete(),sections:[...complete().sections,{id:'shloka'}]})));
 test('invalid duration is rejected',()=>{for(const maximumDuration of [0,-1,7201,NaN])assert.throws(()=>productionPolicy({...complete(),maximumDuration}));});

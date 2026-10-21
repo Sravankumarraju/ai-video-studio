@@ -73,15 +73,26 @@ export function assFile(doc: ProjectDoc, v: Variant, w: number, h: number) {
   const outline = v.background ? "&H60000000" : "&H00101010";
   const pages = layoutCaptions(captions(doc, v).filter(c => v.captions || c.display === "full-verse"), g);
   const events: string[] = [];
+  const heldBottom = v.position === "bottom" && v.captionBottom !== undefined;
   for (const page of pages) {
     const words = page.lines.flat();
     const scale = page.scale < 1 ? `{\\fscx${Math.floor(page.scale * 100)}\\fscy${Math.floor(page.scale * 100)}}` : "";
     const text = (active = -1) => {
       let k = 0;
-      return (page.held ? "{\\an5}" : "") + scale + page.lines.map((line) => line.map((word) => (k++ === active ? `{\\c${highlight}}${assText(word.text)}{\\c${color}}` : assText(word.text))).join(" ")).join("\\N");
+      return (page.held ? heldBottom ? "{\\an2}" : "{\\an5}" : "") + scale + page.lines.map((line) => line.map((word) => (k++ === active ? `{\\c${highlight}}${assText(word.text)}{\\c${color}}` : assText(word.text))).join(" ")).join("\\N");
     };
     if (!v.wordHighlight || !page.timed) {
       events.push(`Dialogue: 0,${assTime(page.start)},${assTime(page.end)},${page.held ? "Verse" : "Default"},,0,0,0,,${text()}`);
+      continue;
+    }
+    if (page.held) {
+      const boundaries = [...new Set([page.start, page.end, ...words.flatMap(word =>
+        [word.start, word.end].filter((time): time is number => Number.isFinite(time)).map(time => Math.max(page.start, Math.min(page.end, time))))])].sort((a, b) => a - b);
+      boundaries.slice(0, -1).forEach((start, i) => {
+        const end = boundaries[i + 1], mid = (start + end) / 2;
+        const active = words.findIndex(word => word.start !== undefined && word.end !== undefined && word.start <= mid && mid < word.end);
+        if (end > start) events.push(`Dialogue: 0,${assTime(start)},${assTime(end)},Verse,,0,0,0,,${text(active)}`);
+      });
       continue;
     }
     // One event per spoken word: only the word being said is highlighted.
@@ -93,7 +104,7 @@ export function assFile(doc: ProjectDoc, v: Variant, w: number, h: number) {
   }
   return (
     `[Script Info]\nScriptType: v4.00+\nPlayResX: ${w}\nPlayResY: ${h}\nWrapStyle: 2\nScaledBorderAndShadow: yes\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,${font},${g.fontPx},${color},${color},${outline},&H80000000,0,0,0,0,100,100,0,0,${v.background ? 3 : 1},${v.outline},${v.background ? 0 : 2},${align},${g.marginX},${g.marginX},${g.marginV},1\n` +
-    `Style: Verse,${font},${g.fontPx},${color},${color},&H00101010,&H00000000,0,0,0,0,100,100,0,0,1,${v.outline},2,5,${g.marginX},${g.marginX},${g.marginV},1\n` +
+    `Style: Verse,${font},${g.fontPx},${color},${color},${heldBottom ? outline : "&H00101010"},&H00000000,0,0,0,0,100,100,0,0,${heldBottom && v.background ? 3 : 1},${v.outline},${heldBottom && v.background ? 0 : 2},${heldBottom ? 2 : 5},${g.marginX},${g.marginX},${g.marginV},1\n` +
     `[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n` +
     events.join("\n") +
     (v.titleOverlay

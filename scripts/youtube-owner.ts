@@ -62,7 +62,7 @@ async function main() {
     }
   }
 }
-void main().catch((e) => {
+if (process.argv[1]?.replace(/\\/g, '/').endsWith('/youtube-owner.ts')) void main().catch((e) => {
   console.error(e.message);
   process.exitCode = 1;
 });

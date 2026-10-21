@@ -1,0 +1,74 @@
+name: divine-wisdom
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: studio
+      POSTGRES_DB: studio
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.server}
+    volumes: ["postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studio -d studio"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes: ["redis:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  app:
+    image: divine-wisdom:server
+    build:
+      context: ../..
+    restart: unless-stopped
+    env_file: ${STUDIO_ENV_FILE:-.env.server}
+    environment:
+      DATABASE_URL: postgresql://studio:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/studio
+      REDIS_URL: redis://redis:6379
+      MEDIA_ROOT: /app/data/media
+      FONT_DIR: /app/public/fonts
+    ports: ["127.0.0.1:3000:3000"]
+    volumes: ["media:/app/data/media"]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+  worker:
+    image: divine-wisdom:server
+    restart: unless-stopped
+    command: ["sh", "-c", "mkdir -p /app/data/media/render-temp && npm run db:migrate && npm run worker"]
+    env_file: ${STUDIO_ENV_FILE:-.env.server}
+    environment:
+      DATABASE_URL: postgresql://studio:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/studio
+      REDIS_URL: redis://redis:6379
+      MEDIA_ROOT: /app/data/media
+      FONT_DIR: /app/public/fonts
+      WORKER_CONCURRENCY: "1"
+      TMPDIR: /app/data/media/render-temp
+    volumes: ["media:/app/data/media"]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+  youtube-worker:
+    image: divine-wisdom:server
+    restart: unless-stopped
+    command: ["sh", "-c", "npm run db:migrate && npm run worker:youtube"]
+    env_file: ${STUDIO_ENV_FILE:-.env.server}
+    environment:
+      DATABASE_URL: postgresql://studio:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/studio
+      REDIS_URL: redis://redis:6379
+      MEDIA_ROOT: /app/data/media
+    volumes: ["media:/app/data/media"]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+volumes:
+  postgres:
+  redis:
+  media:

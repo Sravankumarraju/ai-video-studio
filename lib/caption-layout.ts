@@ -31,10 +31,23 @@ export function layoutCaptions(cues: CaptionCue[], options: { maxWidthPx: number
     if (cue.display === "full-verse") {
       const lines = cue.text.split(/\r?\n/u).filter(l => l.trim()).map(l => l.trim().split(/\s+/u).map(text => ({ text })));
       if (!lines.length) continue;
+      const key = (text: string) => text.replace(/[^\p{L}\p{M}]/gu, "");
+      const spoken = (cue.words ?? []).filter(word => key(word.text));
+      let cursor = 0;
+      const heldLines: CaptionLine[] = lines.map(line => line.map(word => {
+        const match = spoken[cursor];
+        if (key(word.text) && match && key(word.text) === key(match.text)) {
+          cursor++;
+          return { ...word, start: match.start, end: match.end };
+        }
+        return word;
+      }));
+      const timed = spoken.length > 0 && cursor === spoken.length && heldLines.flat().every(word =>
+        !key(word.text) || (Number.isFinite(word.start) && Number.isFinite(word.end) && word.end! > word.start!));
       const widest = Math.max(...lines.map(l => textWidthEm(l.map(w => w.text).join(" "))));
       // Preserve authored line breaks and every word for the entire recitation. Never paginate.
       const scale = Math.min(1, maxEm / Math.max(widest, 1), 6 / lines.length);
-      pages.push({ start: cue.start, end: cue.end, lines, scale, timed: false, held: true });
+      pages.push({ start: cue.start, end: cue.end, lines: heldLines, scale, timed, held: true });
       continue;
     }
     const timed = !!cue.words?.length && cue.words.every((w) => w.start !== undefined && w.end !== undefined);

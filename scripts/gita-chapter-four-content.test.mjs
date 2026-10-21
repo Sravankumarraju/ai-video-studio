@@ -1,0 +1,6 @@
+﻿import test from 'node:test';
+import assert from 'node:assert/strict';
+import {chapterFourMeanings,chapterFourActs} from './gita-chapter-four-content.mjs';
+import {productionPolicy,expectedChapterVerseIntroduction} from './divine-production-policy.mjs';
+test('Chapter4 retains all42 separate meanings and labels',()=>{assert.deepEqual(chapterFourMeanings.map(v=>v.verseNumber),Array.from({length:42},(_,i)=>i+1));const c={productionKind:'chapter-meaning',chapterNumber:4,sections:chapterFourMeanings};assert.equal(productionPolicy(c).verseCount,42);for(const sections of [c.sections.slice(1),c.sections.toReversed(),[...c.sections,c.sections[41]]])assert.throws(()=>productionPolicy({...c,sections}));assert.equal(expectedChapterVerseIntroduction({explicitChapterLabels:true},4,42),'అధ్యాయం 4, శ్లోకం 42.');});
+test('Chapter4 preserves yajna details and sincere inquiry',()=>{assert(chapterFourMeanings[28].meaning.includes('ప్రాణాయామ'));assert(chapterFourMeanings[33].meaning.includes('ప్రశ్న'));assert(chapterFourMeanings[39].meaning.includes('ప్రశ్నలు అడగడం తప్పు'));const reminder=chapterFourActs.find(a=>a.before===23).text;for(const word of ['లైక్','షేర్','కామెంట్','సబ్‌స్క్రైబ్'])assert(reminder.includes(word));});

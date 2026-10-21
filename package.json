@@ -13,6 +13,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "sample": "tsx scripts/sample.ts",
+    "prepare:devotional": "tsx scripts/prepare-devotional-research.ts",
     "test:acceptance": "tsx scripts/acceptance.ts",
     "test:recovery": "tsx scripts/recovery.ts",
     "test:mcp": "tsx scripts/mcp-acceptance.ts",

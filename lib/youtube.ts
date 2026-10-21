@@ -4,6 +4,8 @@ import { encrypt, decrypt } from "./security";
 const scopes = [
   "https://www.googleapis.com/auth/youtube.upload",
   "https://www.googleapis.com/auth/youtube.readonly",
+  // Playlist creation and playlist membership require a write scope.
+  "https://www.googleapis.com/auth/youtube.force-ssl",
 ];
 const callback = () => `${process.env.APP_ORIGIN}/api/youtube/callback`;
 type Client = {

@@ -9,6 +9,9 @@ names = ['README.md', 'script-te.md', 'description-te.md', 'CHAPTERS.txt', 'publ
 for name in ['visual-plan.json', 'visual-reuse-verification.json', 'existing-art-contact-sheet.jpg', 'app-publishing-verification.json', 'FINAL_DELIVERY.json', 'FINAL_DELIVERY.md', 'final-export-verification.json', 'streaming-verification.json', 'YOUTUBE_UPLOAD.json', 'MUSIC-PROVENANCE.json', 'RESEARCH-AND-EDITORIAL.md']:
     if (folder / name).exists():
         names.append(name)
+for name in ['art-provenance.json', 'art-review.json', 'alignment-repair-verification.json', 'browser-repaired-section-full.json']:
+    if (folder / name).exists():
+        names.append(name)
 target = folder / 'publishing-package.zip'
 with ZipFile(target, 'w', ZIP_DEFLATED) as archive:
     for name in names:

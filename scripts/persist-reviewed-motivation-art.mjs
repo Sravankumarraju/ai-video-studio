@@ -1,0 +1,11 @@
+import {readFile,writeFile,copyFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import assert from 'node:assert/strict';
+const [number,source]=process.argv.slice(2),n=Number(number);
+assert(Number.isInteger(n)&&n>=1&&n<=40&&source);
+const dir=`data/productions/divine-wisdom/motivation-shorts-40/motivation-short-${String(n).padStart(3,'0')}`;
+const target=`${dir}/hero.png`,hash=b=>createHash('sha256').update(b).digest('hex');
+const incoming=await readFile(source);const old=await readFile(target).catch(e=>{if(e.code!=='ENOENT')throw e;return null;});
+if(old)assert.equal(hash(old),hash(incoming),'Preserve existing artwork; use an explicit version for replacement');else await copyFile(source,target);
+await writeFile(`${dir}/artwork-review.json`,JSON.stringify({reviewed:true,file:'hero.png',source,sha256:hash(incoming),reviewedAt:new Date().toISOString(),findings:'Personally inspected original portrait artwork for subject relevance, dignified natural expression, believable anatomy and clear lower caption space. No embedded Telugu caption text.'},null,2));
+console.log(JSON.stringify({short:n,artworkSaved:true}));

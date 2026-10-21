@@ -26,6 +26,9 @@ try{
  const {chapterNumber,verseCount}=productionPolicy(config);
  assert((verified.allVerseMeaningsCovered||verified.all47VerseMeaningsCovered)&&verified.noSanskritRecitation&&verified.decodedEntireFile);
  await writeFile(`${dir}/README.md`,`# Complete Bhagavad Gita Chapter ${chapterNumber}: Telugu meaning and significance\n\nCompleted 1080p 16:9 H.264/AAC, ${(verified.seconds/60).toFixed(2)} minutes. All ${verseCount} verse meanings individually covered, no Sanskrit recitation, no music, selected authorized voice. Spoken/displayed verse labels, clear Telugu word highlighting, gentle eased pans, approved logo welcome and subscribe/like/share/comment ending.\n\nEntire MP4 decoding and timeline/word alignment checks passed. Browser playback is recorded separately in browser-full-verification.json.\n\nFiles: ${config.fileStem}-full.mp4, SRT/VTT captions, script-te.md, editable episode.json, image-prompts.json, coverage.json, thumbnail and publishing files. Resume each stage using scripts/divine-long-episode.mjs; keep state.json and saved job IDs.\n\nOpen http://localhost:3000 → Devotional projects → Bhagavad Gita · Telugu → complete Chapter 1 → Preview & exports. Start app: docker compose -f compose.yaml -f compose.render-d.yaml up -d --no-build --pull never.\n\nYouTube upload is not part of this render workflow; no live upload attempted.\n`);
- if(config.originalMusic){let summary=await readFile(`${dir}/README.md`,'utf8');summary=summary.replace('no Sanskrit recitation, no music,','no Sanskrit recitation, soft original instrumental music with voice ducking,');await writeFile(`${dir}/README.md`,summary);}
+ let summary=await readFile(`${dir}/README.md`,'utf8');
+ summary=summary.replace('complete Chapter 1 →',`complete Chapter ${chapterNumber} →`);
+ if(config.originalMusic)summary=summary.replace('no Sanskrit recitation, no music,','no Sanskrit recitation, soft original instrumental music with voice ducking,');
+ await writeFile(`${dir}/README.md`,summary);
  console.log(`Complete Chapter ${chapterNumber} video exported and decoded successfully.`);
 }finally{await client.close();}

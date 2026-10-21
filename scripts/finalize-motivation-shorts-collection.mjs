@@ -1,0 +1,32 @@
+import {readFile,writeFile,stat} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+const root=resolve('data/productions/divine-wisdom/motivation-shorts-40');
+const read=async p=>JSON.parse(await readFile(p,'utf8'));
+const plan=await read(`${root}/NARRATION-PLAN.json`);
+assert.equal(plan.shorts.length,40);assert.equal(plan.plannedCalls,40);assert.equal(plan.characters,17313);assert.equal(plan.uploadHold,true);
+const shorts=[];const jobs=new Set();let characters=0;
+for(const entry of plan.shorts){
+ const dir=resolve(entry.directory),config=await read(`${dir}/episode.json`),state=await read(`${dir}/state.json`),final=await read(`${dir}/FINAL_DELIVERY.json`),verification=await read(`${dir}/verification-full.json`),browser=await read(`${dir}/browser-full-verification.json`),review=await read(`${dir}/review-frames.json`);
+ const text=config.sections[0].text;
+ assert.equal(createHash('sha256').update(text).digest('hex'),entry.sha256);assert.equal(text.length,entry.characters);characters+=text.length;
+ const voiceJobs=Object.values(state.jobs||{});assert.equal(voiceJobs.length,1);assert(!jobs.has(voiceJobs[0]));jobs.add(voiceJobs[0]);assert.equal(Object.keys(state.finished||{}).length,1);
+ assert(final.fullFileDecoded&&final.portrait1080p&&final.browserStartMiddleEnd&&final.framesReviewed&&final.uploadHold&&!final.youtubeUploaded);
+ assert(verification.decodedEntireFile&&verification.targetTimingPassed);assert.equal(verification.width,1080);assert.equal(verification.height,1920);assert(review.reviewed);
+ assert.equal(browser.renderJobId,state.renderJobs.full);assert.equal(browser.samples.length,3);assert(browser.samples.every(s=>!s.error&&!s.paused&&s.currentTime>s.requested));
+ const mp4=resolve(`${dir}/${config.fileStem}-full.mp4`),zip=resolve(`${dir}/publishing-package.zip`);
+ for(const name of [mp4,zip,`${dir}/${config.fileStem}-full.srt`,`${dir}/${config.fileStem}-full.vtt`,`${dir}/publishing.json`,`${dir}/thumbnail.png`])assert((await stat(name)).size>0);
+ assert.equal(resolve(final.mp4),mp4);
+ shorts.push({...final,package:zip,subtitles:resolve(`${dir}/${config.fileStem}-full.srt`)});
+}
+assert.equal(characters,17313);assert.equal(jobs.size,40);
+const result={completedAt:new Date().toISOString(),count:40,additionalToFiveQuestionShorts:true,approvedNarrationCalls:40,characters,uploadHold:true,youtubeUploaded:false,shorts};
+await writeFile(`${root}/FINAL_DELIVERY.json`,JSON.stringify(result,null,2));
+const link=p=>p.replaceAll('\\','/');
+let md='# Forty additional Bhagavad Gita motivation Shorts\n\nAll 40 original Telugu videos are complete and verified locally, with portrait 1080p video, highlighted captions, subtitles and publishing metadata. Entire-file decoding, personal frame inspection and actual app playback at the beginning, middle and final three seconds passed for every video.\n\nExactly 40 authorized narration jobs / 17,313 characters were used. These are additional to the five earlier question Shorts. All YouTube uploads remain on hold.\n\nMP4 files are separate from the ZIP publishing packages.\n\n| Short | Telugu title | Gita reference | Seconds | Video | Package |\n|---|---|---|---:|---|---|\n';
+for(const s of shorts)md+=`| ${s.id.slice(-3)} | ${s.title} | ${s.reference} | ${s.seconds.toFixed(1)} | [MP4](<${link(s.mp4)}>) | [ZIP](<${link(s.package)}>) |\n`;
+await writeFile(`${root}/FINAL_DELIVERY.md`,md);
+await writeFile(`${root}/STATUS.md`,'# Forty additional motivation Shorts\n\n40/40 narration sources and 40/40 local videos complete. All verification, browser playback and local packages passed. Exactly 40 saved paid jobs / 17,313 characters. No extra paid calls.\n\nSee FINAL_DELIVERY.md for every video and publishing package. All uploads remain on hold.\n');
+await writeFile(`${root}/CONTINUATION.md`,'# Completed local collection\n\nAll forty Shorts are fully decoded, frame reviewed, actually browser played at start/middle/final three seconds and locally packaged. See FINAL_DELIVERY.json and FINAL_DELIVERY.md. Do not repeat narration, artwork or renders. All uploads remain on hold.\n');
+console.log(JSON.stringify({count:40,characters,voiceJobs:jobs.size,index:`${root}/FINAL_DELIVERY.md`,uploadHold:true}));

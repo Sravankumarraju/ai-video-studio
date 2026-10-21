@@ -1,5 +1,6 @@
 "use client";
 import { McpSettings } from "./mcp-settings";
+import { DevotionalBacklog } from "./devotional-backlog";
 import { YoutubeSettings, YoutubeUploadControls } from "./youtube-settings";
 import { isExportForVariant } from "@/lib/export-visibility";
 import { api, Button, Field, Empty, Modal } from "./ui";
@@ -522,6 +523,7 @@ export default function Studio() {
           {[
             ["Dashboard", LayoutDashboard],
             ["Devotional projects", BookOpen],
+            ["Devotional research", FileText],
             ["All projects", FolderOpen],
             ["AI Providers", Settings],
             ["MCP Connectors", Sparkles],
@@ -886,6 +888,8 @@ export default function Studio() {
             refresh={refresh}
             notify={setNotice}
           />
+        ) : view === "Devotional research" ? (
+          <DevotionalBacklog />
         ) : view === "YouTube uploads" ? (
           <YoutubeSettings />
         ) : view === "MCP Connectors" ? (
@@ -4020,25 +4024,27 @@ function TimelineEditor({
                               : "Studio, Telugu, Devanagari",
                         fontSize: v.fontSize / 3 * (captionPage?.scale ?? 1),
                         color: v.color,
-                        background: v.background && activeCaption?.display !== "full-verse"
+                        background: v.background && (activeCaption?.display !== "full-verse" || v.captionBottom !== undefined)
                           ? "rgba(0,0,0,.65)"
                           : undefined,
                         whiteSpace: activeCaption?.display === "full-verse" ? "pre-line" : undefined,
-                        transform: activeCaption?.display === "full-verse" ? "translateY(-50%)" : undefined,
+                        transform: activeCaption?.display === "full-verse" && !(v.position === "bottom" && v.captionBottom !== undefined) ? "translateY(-50%)" : undefined,
                         lineHeight: activeCaption?.display === "full-verse" ? 1.6 : undefined,
                         top:
-                          activeCaption?.display === "full-verse" ? "50%" : v.position === "top"
+                          activeCaption?.display === "full-verse" && !(v.position === "bottom" && v.captionBottom !== undefined) ? "50%" : v.position === "top"
                             ? "8%"
                             : v.position === "center"
                               ? "45%"
                               : undefined,
-                        bottom: activeCaption?.display === "full-verse" ? "auto" : v.position === "bottom" ? `${(v.captionBottom ?? (v.aspect === "vertical" ? .2 : .07)) * 100}%` : "auto",
+                        bottom: activeCaption?.display === "full-verse" && !(v.position === "bottom" && v.captionBottom !== undefined) ? "auto" : v.position === "bottom" ? `${(v.captionBottom ?? (v.aspect === "vertical" ? .2 : .07)) * 100}%` : "auto",
                         textShadow: `0 0 ${v.outline}px #000`,
                       }}
                     >
                       {captionPage?.lines.map((line, lineIndex) => <span key={lineIndex} style={{display: "block"}}>{line.map((word, i) => {
                         const index = pageWords.indexOf(word);
-                        const highlighted = v.wordHighlight && !captionPage.held && captionPage.timed && word.start !== undefined && playhead - active.start >= (index === 0 ? captionPage.start : word.start) && playhead - active.start < (pageWords[index + 1]?.start ?? captionPage.end);
+                        const highlighted = v.wordHighlight && captionPage.timed && word.start !== undefined && (captionPage.held
+                          ? playhead - active.start >= word.start && playhead - active.start < (word.end ?? word.start)
+                          : playhead - active.start >= (index === 0 ? captionPage.start : word.start) && playhead - active.start < (pageWords[index + 1]?.start ?? captionPage.end));
                         return <span key={i} style={{color: highlighted ? v.highlightColor : v.color}}>{word.text}{" "}</span>;
                       })}</span>)}
                     </div>
@@ -4687,7 +4693,7 @@ function TimelineEditor({
                 <input type="color" value={v.highlightColor} onChange={(e) => updateVariant({ highlightColor: e.target.value })} />
               </Field>
             )}
-            <p className="help">Captions are centred and laid out for this version's frame: words are never split, at most two lines show at once, and long words shrink to fit. Vertical versions sit above the Shorts/Reels controls.</p>
+            <p className="help">Full-shlokam captions keep every authored line visible throughout the verse. Other captions use at most two lines per page, with long words scaled to fit. Vertical versions sit above the Shorts/Reels controls.</p>
             <div className="grid-three">
               <Field label="Caption font">
                 <select

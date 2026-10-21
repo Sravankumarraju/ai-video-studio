@@ -7,12 +7,13 @@ import assert from 'node:assert/strict';
 const selected=process.argv.length>2?process.argv.slice(2).map(Number):[7,8,9,10];
 const later=selected.every(n=>n>=11&&n<=14);
 const newest=selected.every(n=>n>=15&&n<=20);
-const output=`data/productions/divine-wisdom/youtube-private-${newest?'015-020':later?'011-014':'007-010'}-batch.json`;
+const current=selected.every(n=>n>=21&&n<=30);
+const output=`data/productions/divine-wisdom/youtube-private-${current?'021-030':newest?'015-020':later?'011-014':'007-010'}-batch.json`;
 const old=await readFile(output,'utf8').then(JSON.parse).catch(()=>({videos:[]}));
 const c=new Client({name:'gita-private-upload-preparation',version:'1'});
 await c.connect(new StreamableHTTPClientTransport(new URL('http://localhost:3000/api/mcp'),{requestInit:{headers:{Authorization:`Bearer ${process.env.STORY_STUDIO_MCP_TOKEN}`,Connection:'close'}}}));
 async function call(name,args){const r=await c.callTool({name,arguments:args}),t=r.content.find(x=>x.type==='text')?.text;assert(!r.isError,t);return JSON.parse(t);}
-assert(selected.length&&selected.every(n=>Number.isInteger(n)&&n>=7&&n<=20)&&new Set(selected).size===selected.length);
+assert(selected.length&&selected.every(n=>Number.isInteger(n)&&n>=7&&n<=30)&&new Set(selected).size===selected.length);
 const videos=old.videos.filter(v=>!selected.includes(Number(v.episode.split('.')[1])));
 try{for(const n of selected){
  const dir=`data/productions/divine-wisdom/gita-1-${n}/devotional-v1`;
@@ -39,6 +40,6 @@ try{for(const n of selected){
  await writeFile(`${dir}/youtube-metadata.json`,JSON.stringify({...metadata,privacyStatus:'private',containsSyntheticMedia:true},null,2));
  videos.push({...oldEntry,episode:config.verseRef,projectId:config.projectId,renderJobId,thumbnailAssetId,metadata});
   videos.sort((a,b)=>Number(a.episode.split('.')[1])-Number(b.episode.split('.')[1]));
- await writeFile(output,JSON.stringify({privacy:'private',selection:newest?'Latest long-form Telugu Episodes 1.15–1.20 only':later?'Latest long-form Telugu Episodes 1.11–1.14 only':'Latest long-form Telugu Episodes 1.7–1.10 only',videos},null,2));
+ await writeFile(output,JSON.stringify({privacy:'private',selection:current?'Local-only Telugu Episodes 1.21-1.30; uploads on hold':newest?'Latest long-form Telugu Episodes 1.15–1.20 only':later?'Latest long-form Telugu Episodes 1.11–1.14 only':'Latest long-form Telugu Episodes 1.7–1.10 only',videos},null,2));
  console.log(JSON.stringify({episode:config.verseRef,renderJobId,descriptionBytes:Buffer.byteLength(description),thumbnailBytes:bytes.length}));
 }}finally{await c.close();}

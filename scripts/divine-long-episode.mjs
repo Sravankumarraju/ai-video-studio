@@ -12,11 +12,12 @@ import {pipeline} from 'node:stream/promises';
 import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import {createHash} from 'node:crypto';
 import {productionPolicy,assertChapterMediaStageReady,assertProductionMediaReady,assertAuthorizedNarrationBatchCount} from './divine-production-policy.mjs';
 import {restoreVerseLabels} from './divine-aligned-labels.mjs';
 const [dir,mode='status',kind='full']=process.argv.slice(2);
 assert(dir,'Usage: divine-long-episode.mjs <episode-dir> <prepare|voice|media|finish|assemble|draft|full|status|download>');
-const config=JSON.parse(await readFile(`${dir}/episode.json`,'utf8')),profileId='7e994f10-1088-464c-91fb-79297b8fd6cb';
+const config=JSON.parse(await readFile(`${dir}/episode.json`,'utf8')),profileId=config.voiceProfileId||'7e994f10-1088-464c-91fb-79297b8fd6cb';
 const fileStem=config.fileStem||'episode-002';
 const {chapter,chapterNumber,verseCount,maximumDuration}=productionPolicy(config);
 await mkdir(dir,{recursive:true});
@@ -46,6 +47,14 @@ try{
  }
  if(mode==='voice'){
   assertAuthorizedNarrationBatchCount(config,state);
+  if(config.voiceProfileId){
+   const approval=JSON.parse(await readFile(`${dir}/authorization.json`,'utf8'));
+   assert.equal(approval.profileId,profileId);assert.equal(approval.voiceId,config.voiceId);
+   assert.equal(state.batches.length,approval.calls);
+   assert.equal(state.batches.reduce((sum,b)=>sum+b.text.length,0),approval.characters);
+   assert(state.batches.every(b=>b.text.length<=approval.maximumCharactersPerCall),'Priced narration request exceeds its authorized character bound');
+   assert.equal(createHash('sha256').update(state.batches.map(b=>b.text).join('\n\n')).digest('hex'),approval.sha256,'Approved narration changed; preserve saved audio and obtain a new counted plan');
+  }
   for(const b of state.batches){let p=await get();if(p.document.scenes.find(s=>s.id===b.id).audioId)continue;
    if(!state.jobs[b.id]){state.jobs[b.id]=(await call('queue_generation',{projectId:state.projectId,sceneId:b.id,kind:'voice',profileId,paidConfirmed:true})).id;await save();}
    for(;;){const j=await call('get_job',{jobId:state.jobs[b.id]});if(j.state==='completed'){assert(j.result?.applied!==false,'Project changed; recover saved recording before proceeding');console.log(JSON.stringify({source:b.id,state:j.state}));break;}assert(!['failed','cancelled','waiting-for-input','stale'].includes(j.state),j.error||j.state);await new Promise(r=>setTimeout(r,4000));}
