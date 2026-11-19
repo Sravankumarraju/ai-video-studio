@@ -1,0 +1,7 @@
+import 'dotenv/config';
+import {googleRequest} from '../lib/youtube';
+import {db} from '../lib/db';
+import {readFile,writeFile} from 'node:fs/promises';
+const root='data/productions/divine-wisdom/mahishasura-mardini-2026-10-25/female-full-v3';
+async function main(){const state=JSON.parse(await readFile(root+'/youtube-local-upload.json','utf8'));const r=await googleRequest('https://www.googleapis.com/youtube/v3/videos?part=snippet,status,processingDetails&id='+state.videoId,{},'UCZCidygC9i89ye1PEI_nh2Q');if(!r.ok)throw Error('Video read HTTP '+r.status);const d=(await r.json()).items?.[0];if(!d)throw Error('Missing uploaded video');await writeFile(root+'/youtube-upload-verification.json',JSON.stringify(d,null,2));console.log(JSON.stringify({videoId:d.id,channelId:d.snippet.channelId,privacy:d.status.privacyStatus,processing:d.processingDetails?.processingStatus,titleMatch:d.snippet.title===state.metadata.title,descriptionExact:d.snippet.description===state.metadata.description,descriptionTrimmedMatch:d.snippet.description.trimEnd()===state.metadata.description.trimEnd(),expectedDescriptionLength:state.metadata.description.length,actualDescriptionLength:d.snippet.description.length,thumbnail:d.snippet.thumbnails?.maxres||d.snippet.thumbnails?.high,containsSyntheticMedia:d.status.containsSyntheticMedia}));}
+main().catch(e=>{console.error('Upload verification stopped: '+e.name);process.exitCode=1}).finally(()=>db.$disconnect());

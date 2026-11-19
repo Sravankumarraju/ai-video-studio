@@ -1,0 +1,2 @@
+import {credential,db} from './anjaneya-dandakam-audio.mjs';
+try {const key=await credential();const r=await fetch('https://api.elevenlabs.io/v1/user/subscription',{headers:{'xi-api-key':key},signal:AbortSignal.timeout(30000)});const a=await r.json();console.log(JSON.stringify({status:r.status,tier:a.tier,remaining:Number(a.character_limit)-Number(a.character_count)}));}catch(e){console.log(JSON.stringify({error:'Credit check unavailable',type:e.name,code:e.cause?.code}));}finally{await db.$disconnect();}

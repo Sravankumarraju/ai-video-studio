@@ -1,5 +1,32 @@
 # Divine Wisdom Telugu — YouTube channel setup
 
+## Current channel update — 25 October 2026
+
+The live channel is `@DivineWisdomTeluguOfficial`, ID `UCZCidygC9i89ye1PEI_nh2Q`.
+The owner approved applying the channel audit recommendations. The expanded Telugu
+description covering songs, stotras, mantras, namavali and Gita explanations was
+published and confirmed saved in YouTube Studio. Home was enabled and a Popular
+videos section added and published. The Hanuman song `b-p-Gc_vS_4` was saved with
+the title `హనుమాన్ భక్తి పాట | అంజనేయా అడుగులో ధైర్యమా | Telugu Lyrics`.
+
+The revised banner is `data/branding/divine-wisdom/channel-banner/divine-wisdom-telugu-banner-20261025.jpg`
+(2560 × 1440). Its subtitle is `స్తోత్రాలు • మంత్రాలు • భక్తి గీతాలు • భగవద్గీత జ్ఞానం`.
+The revised banner was uploaded, its all-devices crop was visually checked, and
+Publish was applied. The original banner file is preserved alongside it.
+
+The offline ten-video production queue is
+`data/productions/divine-wisdom/channel-plan-2026-10-25/production-queue.json`.
+`START-HERE.txt` lists the order and each matching existing production reference.
+Run `node scripts/prepare-channel-queue-20261025.mjs` only to regenerate these
+planning files; it does not generate media or publish. Preserve reviewed editions
+separately before regenerating. Shiva chant productions and Suprabhatam samples
+already exist and must be inspected before replacement generation.
+
+The earlier Gita-only description, long-form-only layout recommendations and
+unverified-access statements below are historical setup guidance, superseded by
+the live update above where they conflict. Gita remains a distinct teaching series;
+musical chanting uses its own existing audio and visual treatment.
+
 Prepared 2 October 2026 for the existing Telugu channel. This is copy-ready setup text; no YouTube changes or publishing have been performed. The channel teaches wisdom from several sacred books, beginning with Bhagavad Gita. Only long-form videos are planned.
 
 ## Channel identity
